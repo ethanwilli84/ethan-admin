@@ -34,3 +34,4 @@ export async function POST(req: Request) {
   })
   return NextResponse.json({ ok: true, id: result.insertedId })
 }
+export const dynamic = 'force-dynamic'

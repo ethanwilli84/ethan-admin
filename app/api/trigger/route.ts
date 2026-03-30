@@ -18,3 +18,4 @@ export async function POST(req: NextRequest) {
   if (res.status === 204) return NextResponse.json({ ok: true })
   return NextResponse.json({ ok: false }, { status: 500 })
 }
+export const dynamic = 'force-dynamic'
