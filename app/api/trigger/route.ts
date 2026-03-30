@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
@@ -18,4 +19,3 @@ export async function POST(req: NextRequest) {
   if (res.status === 204) return NextResponse.json({ ok: true })
   return NextResponse.json({ ok: false }, { status: 500 })
 }
-export const dynamic = 'force-dynamic'

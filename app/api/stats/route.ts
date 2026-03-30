@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
 
@@ -24,4 +25,3 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ total, replied, responseRate: total > 0 ? Math.round((replied / total) * 100) : 0, recentWeek, byCategory, byStatus })
 }
-export const dynamic = 'force-dynamic'

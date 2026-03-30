@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
 
@@ -22,4 +23,3 @@ export async function PATCH(req: NextRequest) {
   )
   return NextResponse.json({ ok: true })
 }
-export const dynamic = 'force-dynamic'
