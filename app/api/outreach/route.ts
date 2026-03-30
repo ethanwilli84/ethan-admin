@@ -23,3 +23,12 @@ export async function PATCH(req: NextRequest) {
   )
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(req: NextRequest) {
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ ok: false, error: 'missing id' }, { status: 400 })
+  const { ObjectId } = await import('mongodb')
+  const db = await getDb()
+  await db.collection('outreach_records').deleteOne({ _id: new ObjectId(id) })
+  return NextResponse.json({ ok: true })
+}
