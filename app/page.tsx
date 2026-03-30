@@ -23,16 +23,18 @@ export default function Home() {
   return (
     <div>
       <header className="header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <span className="header-brand">Ethan Admin</span>
           <span className="header-sep">/</span>
           <span className="header-breadcrumb">campaigns</span>
         </div>
-        <span className="header-breadcrumb">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+        <span className="header-breadcrumb" style={{fontFamily:'DM Mono,monospace',fontSize:12}}>
+          {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+        </span>
       </header>
 
       <div className="main">
-        <div className="page-header">
+        <div className="page-header fade-up">
           <div>
             <div className="page-title">Campaigns</div>
             <div className="page-sub">Select a campaign to manage</div>
@@ -40,10 +42,10 @@ export default function Home() {
         </div>
 
         <div className="campaign-grid">
-          {campaigns.map(c => {
+          {campaigns.map((c, i) => {
             const s = stats[c.slug]
             return (
-              <Link key={c._id} href={`/campaigns/${c.slug}`} className="campaign-card">
+              <Link key={c._id} href={`/campaigns/${c.slug}`} className={`campaign-card fade-up fade-up-${Math.min(i+1,4)}`}>
                 <div className="campaign-card-header">
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span className="campaign-card-icon">{c.icon}</span>
@@ -52,7 +54,7 @@ export default function Home() {
                       <div className="campaign-card-desc">{c.description}</div>
                     </div>
                   </div>
-                  <span className={c.active ? 'badge-active' : 'badge-paused'}>{c.active ? 'active' : 'paused'}</span>
+                  <span className={c.active ? 'badge-active' : 'badge-paused'}>{c.active ? 'live' : 'paused'}</span>
                 </div>
                 {s && (
                   <div className="campaign-stats">
@@ -64,8 +66,8 @@ export default function Home() {
               </Link>
             )
           })}
-          <button className="campaign-add">
-            <span className="campaign-add-icon">+</span>
+          <button className="campaign-add fade-up fade-up-2">
+            <span className="campaign-add-icon">＋</span>
             <span>New Campaign</span>
           </button>
         </div>
