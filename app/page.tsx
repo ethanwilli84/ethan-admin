@@ -28,7 +28,7 @@ export default function Home() {
           <span className="header-sep">/</span>
           <span className="header-breadcrumb">campaigns</span>
         </div>
-        <span className="header-breadcrumb" style={{fontFamily:'DM Mono,monospace',fontSize:12}}>
+        <span className="header-breadcrumb" style={{fontFamily:'var(--font-dm-mono),monospace',fontSize:12}}>
           {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
         </span>
       </header>

@@ -162,7 +162,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                 <button className="btn-primary" onClick={saveTemplate}>{saved?'✓ Saved':'Save Template'}</button>
               </div>
               <textarea className="textarea" style={{height:320}} value={template} onChange={e=>setTemplate(e.target.value)}/>
-              <div style={{marginTop:8,color:'var(--text-3)',fontSize:11,fontFamily:'DM Mono,monospace'}}>Subject: "Guest Appearance - Ethan Williams"</div>
+              <div style={{marginTop:8,color:'var(--text-3)',fontSize:11,fontFamily:'var(--font-dm-mono),monospace'}}>Subject: "Guest Appearance - Ethan Williams"</div>
             </div>
           </div>
         )}
