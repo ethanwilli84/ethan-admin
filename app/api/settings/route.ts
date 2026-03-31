@@ -15,15 +15,51 @@ Ethan Williams
 ethan@sireapp.io | +1 (734) 664-5129
 Instagram: @ethan.williamsx`
 
-const DEFAULT_RESEARCH = `Find 15 podcast shows or speaking panel events that would be a great fit for a guest appearance by a 20-year-old self-made entrepreneur from NYC who built a $5M/year software company and leads a social community called the Taco Project. Focus on entrepreneurship, Gen Z, business, fintech, and startup podcasts or speaking opportunities. Return only podcasts and speaking panels — no competitions or awards.`
+const DEFAULT_RESEARCH = `Search the web and find 15 NEW podcast or public speaking opportunities for a 20-year-old NYC entrepreneur named Ethan Williams.
+
+About Ethan:
+- 20 years old, based in NYC
+- Founded a software company doing $5M+/year revenue
+- Leads a young entrepreneur community called The Taco Project
+- Topics: entrepreneurship, gen z mindset, travel/culture, living a full life while building, overcoming struggles
+- Has spoken at schools and entrepreneur groups before
+
+Target platforms with 1,000–100,000 listeners/followers that are actively growing. Avoid mega-famous shows.
+Focus on: college entrepreneurship events, niche podcasts (sneakers, fintech, gen z, young money), NYC startup panels.
+Do NOT include pitch competitions or anything requiring prepared materials.
+
+Return ONLY a valid JSON array of 15 objects. No other text:
+[{"name":"...","category":"podcast|speaking","website":"...","contact_page":"...","description":"...","why_fit":"..."}]`
+
+const DEFAULT_CONTACT_PROMPT = `Find contact email addresses for "{name}" ({website}).
+
+Search their website to find:
+1. Emails on their contact/booking/apply page: {contact_page}
+2. The producer, booking manager, or guest coordinator
+3. Common patterns: contact@, booking@, press@, apply@, hello@, guests@, [firstname]@domain.com
+
+Return ONLY a valid JSON array. Max 4 contacts. No other text:
+[{"email": "email@domain.com", "name": "First Last or null", "role": "host/producer/booking/general", "confidence": "high/medium/low"}]
+
+Only include emails you actually found or can reasonably guess from their domain pattern.`
+
+const DEFAULT_EMAIL_SUBJECT = 'Guest Appearance - Ethan Williams'
+const DEFAULT_SENDER_NAME = 'Ethan Williams'
+const DEFAULT_SENDER_EMAIL = 'ethan@sireapp.io'
 
 const DEFAULTS = {
   template: DEFAULT_TEMPLATE,
   researchPrompt: DEFAULT_RESEARCH,
+  contactPrompt: DEFAULT_CONTACT_PROMPT,
+  emailSubject: DEFAULT_EMAIL_SUBJECT,
+  senderName: DEFAULT_SENDER_NAME,
+  senderEmail: DEFAULT_SENDER_EMAIL,
   sendTime: '09:00',
   sendDays: ['mon','tue','wed','thu','fri'],
   endDate: null,
   perSession: 15,
+  maxContactsPerPlatform: 3,
+  skipLowConfidence: true,
   paused: false,
 }
 
@@ -31,16 +67,21 @@ export async function GET(req: NextRequest) {
   const campaign = req.nextUrl.searchParams.get('campaign') || 'influence-outreach'
   const db = await getDb()
   const doc = await db.collection('campaign_settings').findOne({ campaign, key: 'config' })
-  return NextResponse.json({ ...DEFAULTS, ...(doc?.value ?? {}) })
+  const saved = doc?.value ?? {}
+  return NextResponse.json({ ...DEFAULTS, ...saved })
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { campaign, ...settings } = body
+  if (!campaign) return NextResponse.json({ ok: false, error: 'missing campaign' }, { status: 400 })
   const db = await getDb()
+  // Merge with existing so partial saves don't wipe other fields
+  const existing = await db.collection('campaign_settings').findOne({ campaign, key: 'config' })
+  const merged = { ...(existing?.value ?? {}), ...settings }
   await db.collection('campaign_settings').updateOne(
     { campaign, key: 'config' },
-    { $set: { campaign, key: 'config', value: settings, updatedAt: new Date() } },
+    { $set: { campaign, key: 'config', value: merged, updatedAt: new Date() } },
     { upsert: true }
   )
   return NextResponse.json({ ok: true })

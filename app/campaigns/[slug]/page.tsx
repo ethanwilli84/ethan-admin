@@ -5,7 +5,7 @@ import Link from 'next/link'
 interface Campaign { slug: string; name: string; icon: string; githubRepo: string; githubWorkflow: string; active: boolean }
 interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; byCategory: {_id:string;count:number}[]; byStatus: {_id:string;count:number}[] }
 interface Rec { _id: string; date: string; name: string; category: string; website: string; emailsSent: string; status: string; note?: string; aiStatus?: string; aiSummary?: string; aiNextStep?: string; replyPreview?: string }
-interface Config { template: string; researchPrompt: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; paused: boolean }
+interface Config { template: string; researchPrompt: string; contactPrompt: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean }
 interface ChatMsg { role: 'user'|'assistant'; content: string }
 
 const SC: Record<string,string> = { Sent:'status-pill status-sent', Replied:'status-pill status-replied', 'No Contact Found':'status-pill status-nocontact', 'Send Failed':'status-pill status-failed' }
@@ -19,7 +19,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [records, setRecords] = useState<Rec[]>([])
   const [campaign, setCampaign] = useState<Campaign|null>(null)
   const [filter, setFilter] = useState('All')
-  const [config, setConfig] = useState<Config>({ template:'', researchPrompt:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, paused:false })
+  const [config, setConfig] = useState<Config>({ template:'', researchPrompt:'', contactPrompt:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
   const [configSaved, setConfigSaved] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState('')
@@ -54,6 +54,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     const next = {...config,...(patch||{})}
     if (patch) setConfig(next)
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign:slug,...next})})
+    await loadAll()
     setConfigSaved(true); setTimeout(()=>setConfigSaved(false),2000)
   }
 
@@ -237,12 +238,16 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         )}
 
         {tab==='settings'&&(
-          <div className="fade-up" style={{maxWidth:720}}>
+          <div className="fade-up" style={{maxWidth:760}}>
+            {/* Save button sticky */}
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:20,gap:8}}>
+              {configSaved&&<span style={{color:'var(--green)',fontSize:12,alignSelf:'center'}}>✓ Saved</span>}
+              <button className="btn-primary" onClick={()=>saveConfig()}>Save All Settings</button>
+            </div>
+
+            {/* Schedule */}
             <div className="card space-24">
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-                <div className="section-label">Schedule & Volume</div>
-                <button className="btn-primary" onClick={()=>saveConfig()}>{configSaved?'✓ Saved':'Save Settings'}</button>
-              </div>
+              <div className="section-label space-8">Schedule & Volume</div>
               <div className="grid-2 space-16">
                 <div>
                   <div className="settings-label">Send Time</div>
@@ -252,30 +257,85 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                   <div className="settings-label">Platforms Per Run</div>
                   <input type="number" className="settings-input" min={1} max={50} value={config.perSession} onChange={e=>setConfig(p=>({...p,perSession:parseInt(e.target.value)||15}))} />
                 </div>
+                <div>
+                  <div className="settings-label">Max Contacts Per Platform</div>
+                  <input type="number" className="settings-input" min={1} max={10} value={config.maxContactsPerPlatform} onChange={e=>setConfig(p=>({...p,maxContactsPerPlatform:parseInt(e.target.value)||3}))} />
+                </div>
+                <div style={{display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+                  <div className="settings-label">Skip Low Confidence Contacts</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8,paddingTop:8}}>
+                    <button className={config.skipLowConfidence?'chip active':'chip'} onClick={()=>setConfig(p=>({...p,skipLowConfidence:!p.skipLowConfidence}))}>
+                      {config.skipLowConfidence?'✓ Enabled':'Disabled'}
+                    </button>
+                    <span style={{fontSize:11,color:'var(--text-3)'}}>skip contacts AI rates as "low" confidence</span>
+                  </div>
+                </div>
               </div>
               <div className="space-16">
                 <div className="settings-label">Send Days</div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {DAYS.map(d=><button key={d} className={`chip ${config.sendDays?.includes(d)?'active':''}`} style={{padding:'4px 12px',fontSize:11,textTransform:'capitalize'}} onClick={()=>setConfig(p=>({...p,sendDays:p.sendDays?.includes(d)?p.sendDays.filter(x=>x!==d):[...(p.sendDays||[]),d]}))}>{d}</button>)}
+                  {['mon','tue','wed','thu','fri','sat','sun'].map(d=><button key={d} className={`chip ${config.sendDays?.includes(d)?'active':''}`} style={{padding:'4px 12px',fontSize:11,textTransform:'capitalize'}} onClick={()=>setConfig(p=>({...p,sendDays:p.sendDays?.includes(d)?p.sendDays.filter(x=>x!==d):[...(p.sendDays||[]),d]}))}>{d}</button>)}
                 </div>
               </div>
               <div>
                 <div className="settings-label">End Date <span style={{color:'var(--text-3)',fontSize:10,fontWeight:400}}>(natural language OK)</span></div>
                 <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
-                  <input type="text" className="settings-input" style={{flex:1}} placeholder='"end of June" or "July 4th" or "in 3 months"' value={naturalDate} onChange={e=>setNaturalDate(e.target.value)} onKeyDown={e=>e.key==='Enter'&&parseNaturalDate()} />
-                  <button className="btn-ghost" style={{fontSize:12,whiteSpace:'nowrap'}} onClick={parseNaturalDate}>Parse →</button>
+                  <input type="text" className="settings-input" style={{flex:1}} placeholder='"end of June" or "July 4th" or "in 3 months"' onChange={async e=>{
+                    const val = e.target.value
+                    if (!val) return
+                    // Auto-parse on blur
+                  }} onBlur={async e=>{
+                    const val = e.target.value
+                    if (!val) return
+                    const res = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:[{role:'user',content:`Convert to YYYY-MM-DD: "${val}". Today is ${new Date().toISOString().split('T')[0]}. Reply with ONLY the date.`}]})})
+                    const d = await res.json()
+                    const parsed = d.reply?.trim()
+                    if (parsed&&/^\d{4}-\d{2}-\d{2}$/.test(parsed)) setConfig(p=>({...p,endDate:parsed}))
+                  }} />
                 </div>
                 {config.endDate?<div style={{display:'flex',alignItems:'center',gap:8}}><span className="status-pill status-sent">{config.endDate}</span><button onClick={()=>setConfig(p=>({...p,endDate:null}))} style={{background:'none',border:'none',color:'var(--text-3)',fontSize:12,cursor:'pointer'}}>✕</button></div>:<div style={{fontSize:11,color:'var(--text-3)'}}>No end date — runs indefinitely</div>}
               </div>
             </div>
+
+            {/* Email Settings */}
+            <div className="card space-24">
+              <div className="section-label space-8">Email Settings</div>
+              <div className="grid-2">
+                <div>
+                  <div className="settings-label">Email Subject</div>
+                  <input type="text" className="settings-input" value={config.emailSubject} onChange={e=>setConfig(p=>({...p,emailSubject:e.target.value}))} placeholder="Guest Appearance - Ethan Williams" />
+                </div>
+                <div>
+                  <div className="settings-label">Sender Name</div>
+                  <input type="text" className="settings-input" value={config.senderName} onChange={e=>setConfig(p=>({...p,senderName:e.target.value}))} placeholder="Ethan Williams" />
+                </div>
+                <div style={{gridColumn:'1/-1'}}>
+                  <div className="settings-label">Sender Email</div>
+                  <input type="email" className="settings-input" value={config.senderEmail} onChange={e=>setConfig(p=>({...p,senderEmail:e.target.value}))} placeholder="ethan@sireapp.io" />
+                </div>
+              </div>
+            </div>
+
+            {/* Research Prompt */}
             <div className="card space-24">
               <div className="section-label space-8">Research Prompt</div>
-              <textarea className="textarea" style={{height:140}} value={config.researchPrompt} onChange={e=>setConfig(p=>({...p,researchPrompt:e.target.value}))} />
+              <div style={{fontSize:11,color:'var(--text-3)',marginBottom:10}}>What Claude uses to find outreach targets each run. Must end with a JSON format instruction.</div>
+              <textarea className="textarea" style={{height:200}} value={config.researchPrompt} onChange={e=>setConfig(p=>({...p,researchPrompt:e.target.value}))} />
             </div>
+
+            {/* Contact Finder Prompt */}
+            <div className="card space-24">
+              <div className="section-label space-8">Contact Finder Prompt</div>
+              <div style={{fontSize:11,color:'var(--text-3)',marginBottom:10}}>
+                How Claude finds emails for each platform. Use <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{name}'}</code>, <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{website}'}</code>, <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{contact_page}'}</code> as variables.
+              </div>
+              <textarea className="textarea" style={{height:200}} value={config.contactPrompt} onChange={e=>setConfig(p=>({...p,contactPrompt:e.target.value}))} />
+            </div>
+
+            {/* Pitch Template */}
             <div className="card">
               <div className="section-label space-8">Pitch Template</div>
-              <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8}}>Subject: "Guest Appearance - Ethan Williams"</div>
-              <textarea className="textarea" style={{height:260}} value={config.template} onChange={e=>setConfig(p=>({...p,template:e.target.value}))} />
+              <textarea className="textarea" style={{height:280}} value={config.template} onChange={e=>setConfig(p=>({...p,template:e.target.value}))} />
             </div>
           </div>
         )}
