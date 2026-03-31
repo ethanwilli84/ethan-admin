@@ -44,12 +44,24 @@ export async function GET(req: NextRequest) {
         // Skip emails we sent (only capture replies FROM others)
         if (from === user) continue
 
-        // Get preview text
+        // Get preview text - decode base64 and strip HTML
         let preview = ''
         try {
           const bodyPart = msg.bodyParts?.get('1')
           if (bodyPart) {
-            preview = Buffer.from(bodyPart).toString('utf-8').substring(0, 300).replace(/\r\n/g, ' ').trim()
+            let raw = Buffer.from(bodyPart).toString('utf-8')
+            // Detect base64 encoded body (common in HTML emails)
+            const b64match = raw.match(/^([A-Za-z0-9+/=\s]{40,})$/)
+            if (b64match) {
+              try {
+                raw = Buffer.from(raw.replace(/\s/g, ''), 'base64').toString('utf-8')
+              } catch {}
+            }
+            // Strip HTML tags
+            raw = raw.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ')
+            // Collapse whitespace
+            raw = raw.replace(/\s+/g, ' ').trim()
+            preview = raw.substring(0, 400)
           }
         } catch {}
 

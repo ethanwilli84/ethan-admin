@@ -54,7 +54,6 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     const next = {...config,...(patch||{})}
     if (patch) setConfig(next)
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign:slug,...next})})
-    await loadAll()
     setConfigSaved(true); setTimeout(()=>setConfigSaved(false),2000)
   }
 
