@@ -72,19 +72,29 @@ export async function GET(req: NextRequest) {
 
         replies.push({ from: fromName ? `${fromName} <${from}>` : from, subject, date, preview, uid })
 
-        // Match to outreach record and update status
+        // Match to outreach record and update — always refresh preview even if already Replied
         const emailDomain = from.split('@')[1]?.split('.')[0] || ''
         if (emailDomain) {
+          // First try exact email match
+          const exactMatch = await db.collection('outreach_records').findOne({
+            campaign,
+            $or: [
+              { emailsSent: { $regex: from.split('<').pop()?.replace('>','').trim() || from, $options: 'i' } },
+              { replyFrom: { $regex: emailDomain, $options: 'i' } },
+            ]
+          })
+          const filter = exactMatch
+            ? { _id: exactMatch._id }
+            : {
+                campaign,
+                status: { $in: ['Sent', 'Send Failed', 'Replied'] },
+                $or: [
+                  { emailsSent: { $regex: emailDomain, $options: 'i' } },
+                  { name: { $regex: emailDomain, $options: 'i' } },
+                ]
+              }
           await db.collection('outreach_records').updateOne(
-            {
-              campaign,
-              status: { $in: ['Sent', 'Send Failed'] },
-              $or: [
-                { emailsSent: { $regex: from, $options: 'i' } },
-                { name: { $regex: emailDomain, $options: 'i' } },
-                { website: { $regex: emailDomain, $options: 'i' } },
-              ]
-            },
+            filter,
             { $set: { status: 'Replied', repliedAt: new Date(date), replyFrom: from, replyPreview: preview } }
           )
         }
