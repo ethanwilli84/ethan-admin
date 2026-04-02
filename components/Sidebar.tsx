@@ -49,17 +49,17 @@ export default function Sidebar() {
         justifyContent: collapsed ? 'center' : 'space-between',
         flexShrink: 0,
       }}>
-        {!collapsed && (
-          <span style={{
-            fontFamily: 'var(--font-syne)',
-            fontWeight: 800,
-            fontSize: 14,
-            background: 'linear-gradient(135deg,var(--accent),var(--accent-2))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            whiteSpace: 'nowrap',
-          }}>Ethan Admin</span>
-        )}
+        <span style={{
+          fontFamily: 'var(--font-syne)',
+          fontWeight: 800,
+          fontSize: 14,
+          background: 'linear-gradient(135deg,var(--accent),var(--accent-2))',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          whiteSpace: 'nowrap',
+        }}>
+          {collapsed ? 'EA' : 'Ethan Admin'}
+        </span>
         <button
           onClick={() => setCollapsed(c => !c)}
           style={{
