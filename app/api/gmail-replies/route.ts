@@ -57,8 +57,13 @@ export async function GET(req: NextRequest) {
                 raw = Buffer.from(raw.replace(/\s/g, ''), 'base64').toString('utf-8')
               } catch {}
             }
-            // Strip HTML tags
-            raw = raw.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ')
+            // Decode quoted-printable (=E2=80=99 style)
+            raw = raw.replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+            // Strip HTML tags and entities
+            raw = raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&[a-z]+;/gi, '')
+            // Remove MIME boundaries and headers that leaked through
+            raw = raw.replace(/--[a-f0-9-]{10,}[\s\S]*?Content-Type[^\n]+/gi, '')
+            raw = raw.replace(/Content-Transfer-Encoding[^\n]+/gi, '')
             // Collapse whitespace
             raw = raw.replace(/\s+/g, ' ').trim()
             preview = raw.substring(0, 400)
