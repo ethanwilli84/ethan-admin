@@ -64,23 +64,25 @@ export default function DevPanel() {
 
   return (
     <>
-      {/* Toggle button — always visible */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
-          width: 52, height: 52, borderRadius: '50%',
-          background: open ? '#1a1a3e' : 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
-          border: open ? '2px solid #5B4FE9' : 'none',
-          color: '#fff', fontSize: 20, cursor: 'pointer',
-          boxShadow: '0 4px 24px rgba(91,79,233,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s',
-        }}
-        title="Dev Agent"
-      >
-        {open ? '✕' : '⌨'}
-      </button>
+      {/* Toggle button — only show when closed */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
+            border: 'none',
+            color: '#fff', fontSize: 18, cursor: 'pointer',
+            boxShadow: '0 4px 24px rgba(91,79,233,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          title="Dev Agent"
+        >
+          ⌨
+        </button>
+      )}
 
       {/* Side panel */}
       <div style={{
@@ -103,9 +105,9 @@ export default function DevPanel() {
             }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 8 }}>
                 <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:14, color:'#a0a0ff' }}>⌨ Dev Agent</div>
-                <div style={{ display:'flex', gap:6 }}>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                   <button onClick={() => setMsgs([])} style={{ background:'none', border:'1px solid #2a2a4e', borderRadius:6, color:'#5555aa', fontSize:10, padding:'3px 8px', cursor:'pointer' }}>Clear</button>
-                  <button onClick={() => setOpen(false)} style={{ background:'none', border:'none', color:'#5555aa', fontSize:16, cursor:'pointer', lineHeight:1 }}>✕</button>
+                  <button onClick={() => setOpen(false)} style={{ background:'#1a1a3e', border:'1px solid #3a3a6e', borderRadius:8, color:'#9999cc', fontSize:14, cursor:'pointer', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }} title="Close panel">✕</button>
                 </div>
               </div>
               {/* Link to this Claude chat */}
