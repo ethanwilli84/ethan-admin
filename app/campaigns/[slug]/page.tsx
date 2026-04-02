@@ -28,8 +28,6 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const [devMode, setDevMode] = useState(false)
-  const [devEvents, setDevEvents] = useState<string[]>([])
   const [analyzingId, setAnalyzingId] = useState<string|null>(null)
   const [gmailStatus, setGmailStatus] = useState<{needsSetup?:boolean;count?:number}|null>(null)
   const [pullLoading, setPullLoading] = useState(false)
@@ -109,7 +107,6 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     const res = await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:newMsgs.map(m=>({role:m.role,content:m.content})),campaign:slug})})
     const d = await res.json()
     setChatMsgs(prev=>[...prev,{role:'assistant',content:d.reply}])
-    if(d.events?.length) setDevEvents(d.events)
     setChatLoading(false)
     if (d.actions?.length) setTimeout(loadAll,1000)
   }
@@ -128,7 +125,6 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
           <span style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:14}}>{campaign?.icon} {campaign?.name}</span>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          <button className="btn-ghost" style={{fontSize:12}} onClick={pullGmail}>⟳ Sync Gmail</button>
           <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
           <button className="btn-primary" style={{fontSize:12}} onClick={triggerRun} disabled={triggering}>{triggering?'◌ Running...':'▶ Run Now'}</button>
         </div>
@@ -202,7 +198,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Platform</th><th>Category</th><th>Contacts</th><th>Status</th><th>AI Status</th><th></th></tr></thead>
+                <thead><tr><th>Date</th><th>Platform</th><th>Category</th><th>Contacts</th><th>Status</th><th>AI Status</th><th>Next Step</th></tr></thead>
                 <tbody>
                   {filtered.length===0&&<tr><td colSpan={7} className="td-empty">✦ No records yet</td></tr>}
                   {filtered.map(rec=>(
@@ -217,6 +213,9 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                           <div>
                             <span className={AC[rec.aiStatus]||'ai-pill ai-cold'}>{rec.aiStatus}</span>
                             {rec.aiSummary&&<div style={{fontSize:10,color:'var(--text-3)',marginTop:2,maxWidth:160}}>{rec.aiSummary}</div>}
+                            <button className="td-action" style={{marginTop:4,fontSize:9,opacity:0.6}} onClick={()=>analyzeReply(rec)} disabled={analyzingId===rec._id}>
+                              {analyzingId===rec._id?'◌':'↺ Re-analyze'}
+                            </button>
                           </div>
                         ):rec.status==='Replied'?(
                           <button className="td-action" onClick={()=>analyzeReply(rec)} disabled={analyzingId===rec._id}>
@@ -346,36 +345,19 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         )}
 
         {tab==='chat'&&(
-          <div className="fade-up" style={{maxWidth:devMode?900:700,display:'flex',flexDirection:'column',height:'calc(100vh - 240px)'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <div style={{display:'flex',gap:8}}>
-                <button className={devMode?'btn-primary':'btn-ghost'} style={{fontSize:12,padding:'6px 14px'}} onClick={()=>{setDevMode(false);setChatMsgs([]);setDevEvents([])}}>
-                  ✦ Admin
-                </button>
-                <button className={devMode?'btn-ghost btn-active':'btn-ghost'} style={{fontSize:12,padding:'6px 14px',background:devMode?'linear-gradient(135deg,#0f0f23,#1a1a3e)':undefined,color:devMode?'#7B6FF0':undefined,borderColor:devMode?'#7B6FF0':undefined}} onClick={()=>{setDevMode(true);setChatMsgs([]);setDevEvents([])}}>
-                  ⌨ Dev Mode
-                </button>
-              </div>
-              {devMode&&<span style={{fontSize:11,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>reads/writes github · auto-deploys</span>}
-            </div>
-            <div style={{flex:1,display:'flex',gap:12,overflow:'hidden'}}>
-              <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12,paddingBottom:12}}>
+          <div className="fade-up" style={{maxWidth:700,display:'flex',flexDirection:'column',height:'calc(100vh - 220px)'}}>
+            <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:12,paddingBottom:12}}>
               {chatMsgs.length===0&&(
-                <div className="card" style={{textAlign:'center',padding:40,background:devMode?'#0f0f23':undefined,borderColor:devMode?'#2a2a4e':undefined}}>
-                  <div style={{fontSize:32,marginBottom:12}}>{devMode?'⌨':'✦'}</div>
-                  <div style={{fontFamily:'var(--font-syne)',fontSize:16,fontWeight:700,marginBottom:8,color:devMode?'#a0a0ff':undefined}}>{devMode?'Dev Agent':'Admin AI'}</div>
-                  <div style={{color:devMode?'#6666aa':'var(--text-3)',fontSize:13,lineHeight:1.6,marginBottom:16}}>
-                    {devMode?'Write, test, and deploy code changes. I can read files, write code, commit to GitHub, and trigger deploys.':'Update settings, create campaigns, analyze performance — just ask.'}
+                <div className="card" style={{textAlign:'center',padding:40}}>
+                  <div style={{fontSize:32,marginBottom:12}}>✦</div>
+                  <div style={{fontFamily:'var(--font-syne)',fontSize:16,fontWeight:700,marginBottom:8}}>Admin AI</div>
+                  <div style={{color:'var(--text-3)',fontSize:13,lineHeight:1.6,marginBottom:16}}>
+                    Ask anything about this campaign — strategy, settings, reply analysis, or next steps.
                   </div>
                   <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
-                    {devMode
-                      ?['Add a new API endpoint','Fix the stats chart colors','Add pagination to the outreach table','Show me the current homepage code'].map(s=>(
-                          <button key={s} className="chip" style={{fontSize:11,background:'#1a1a3e',borderColor:'#2a2a4e',color:'#8888cc'}} onClick={()=>setChatInput(s)}>{s}</button>
-                        ))
-                      :['Pause this campaign until next Monday','Create an Alpine BNPL outreach campaign','What can I do to improve reply rate?','Run the outreach now'].map(s=>(
-                          <button key={s} className="chip" style={{fontSize:11}} onClick={()=>setChatInput(s)}>{s}</button>
-                        ))
-                    }
+                    {['What should I do with my promising replies?','How can I improve my reply rate?','Pause this campaign until Monday',"Summarize this week's results"].map(s=>(
+                      <button key={s} className="chip" style={{fontSize:11}} onClick={()=>setChatInput(s)}>{s}</button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -386,23 +368,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                   </div>
                 </div>
               ))}
-              {chatLoading&&<div style={{display:'flex'}}><div style={{padding:'12px 16px',border:'1px solid var(--border)',borderRadius:'16px 16px 16px 4px',fontSize:13,background:devMode?'#1a1a3e':'var(--surface)',color:devMode?'#6666aa':'var(--text-3)'}}>◌ thinking...</div></div>}
+              {chatLoading&&<div style={{display:'flex'}}><div style={{padding:'12px 16px',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'16px 16px 16px 4px',fontSize:13,color:'var(--text-3)'}}>◌ thinking...</div></div>}
               <div ref={chatEndRef}/>
             </div>
-              {devMode&&devEvents.length>0&&(
-                <div style={{width:220,overflowY:'auto',background:'#0a0a1a',border:'1px solid #2a2a4e',borderRadius:12,padding:12}}>
-                  <div style={{fontFamily:'var(--font-dm-mono)',fontSize:10,color:'#5555aa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Tool Calls</div>
-                  {devEvents.map((e,i)=>(
-                    <div key={i} style={{fontFamily:'var(--font-dm-mono)',fontSize:11,color:'#7777cc',padding:'4px 0',borderBottom:'1px solid #1a1a3e'}}>
-                      {e}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div style={{paddingTop:12,borderTop:devMode?'1px solid #2a2a4e':'1px solid var(--border)',display:'flex',gap:8}}>
-              <input className="settings-input" style={{flex:1,background:devMode?'#0f0f23':undefined,borderColor:devMode?'#2a2a4e':undefined,color:devMode?'#a0a0ff':undefined}} placeholder={devMode?"Describe a code change or ask about the codebase...":"Ask anything about your campaigns..."} value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendChat()}/>
-              <button className={devMode?'':'btn-primary'} style={devMode?{background:'linear-gradient(135deg,#5B4FE9,#7B6FF0)',color:'#fff',padding:'10px 20px',border:'none',borderRadius:10,fontWeight:600,fontSize:13,cursor:'pointer'}:undefined} onClick={sendChat} disabled={chatLoading||!chatInput.trim()}>Send</button>
+            <div style={{paddingTop:12,borderTop:'1px solid var(--border)',display:'flex',gap:8}}>
+              <input className="settings-input" style={{flex:1}} placeholder="Ask anything about this campaign..." value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendChat()}/>
+              <button className="btn-primary" onClick={sendChat} disabled={chatLoading||!chatInput.trim()}>Send</button>
             </div>
           </div>
         )}

@@ -28,7 +28,7 @@ export default function Sidebar() {
 
   return (
     <div style={{
-      width: collapsed ? 52 : 200,
+      width: collapsed ? 56 : 210,
       minHeight: '100vh',
       background: 'var(--surface)',
       borderRight: '1px solid var(--border)',
@@ -93,7 +93,7 @@ export default function Sidebar() {
               </div>
             )}
             {group.items.map(item => {
-              const active = path === item.href || (item.href !== '/' && path.startsWith(item.href))
+              const active = item.href === '/' ? path === '/' : path === item.href || path.startsWith(item.href)
               return (
                 <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
                   <div style={{

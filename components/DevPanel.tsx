@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 interface ChatMsg { role: 'user'|'assistant'; content: string; image?: string }
 
 // This Claude chat URL — copy from your browser when the dev panel bugs out
-const CLAUDE_CHAT_URL = 'https://claude.ai/chat'
+const CLAUDE_CHAT_URL = 'https://claude.ai/chat/d077d338-25af-4a74-b5ea-abfbf5bc5ab8'
 
 export default function DevPanel() {
   const [open, setOpen] = useState(false)
