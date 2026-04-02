@@ -19,6 +19,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [records, setRecords] = useState<Rec[]>([])
   const [campaign, setCampaign] = useState<Campaign|null>(null)
   const [filter, setFilter] = useState('All')
+  const [search, setSearch] = useState('')
   const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
   const [configSaved, setConfigSaved] = useState(false)
   const [triggering, setTriggering] = useState(false)
@@ -99,6 +100,15 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     if (parsed&&/^\d{4}-\d{2}-\d{2}$/.test(parsed)) setConfig(p=>({...p,endDate:parsed}))
   }
 
+  function relDate(d: string) {
+    const diff = Math.floor((Date.now() - new Date(d).getTime()) / 86400000)
+    if (diff === 0) return 'today'
+    if (diff === 1) return 'yesterday'
+    if (diff < 7) return `${diff}d ago`
+    return d.substring(5) // MM-DD
+  }
+
+
   async function sendChat() {
     if (!chatInput.trim()||chatLoading) return
     const userMsg:ChatMsg = {role:'user',content:chatInput}
@@ -112,7 +122,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   }
 
   const statuses = ['All','Sent','Replied','No Contact Found','Send Failed']
-  const filtered = filter==='All'?records:records.filter(r=>r.status===filter)
+  const filtered = records.filter(r=>(filter==='All'||r.status===filter)&&(!search||r.name?.toLowerCase().includes(search.toLowerCase())||r.emailsSent?.toLowerCase().includes(search.toLowerCase())))
   const repliedCount = records.filter(r=>r.status==='Replied').length
   const convertedCount = records.filter(r=>r.aiStatus==='Converted').length
 
@@ -194,7 +204,11 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
           <div className="fade-up">
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
               <span className="page-sub">{records.length} total · {repliedCount} replied</span>
-              <div className="filters">{statuses.map(s=><button key={s} className={`chip ${filter===s?'active':''}`} onClick={()=>setFilter(s)}>{s}</button>)}</div>
+              <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+                <input className="settings-input" style={{width:200,fontSize:12,padding:'6px 12px'}} placeholder="Search platforms..." value={search} onChange={e=>setSearch(e.target.value)}/>
+                <div className="filters" style={{display:'flex',gap:6,flexWrap:'wrap'}}>{statuses.map(s=><button key={s} className={`chip ${filter===s?'active':''}`} onClick={()=>setFilter(s)}>{s}</button>)}</div>
+                {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:12}}>✕</button>}
+              </div>
             </div>
             <div className="table-wrap">
               <table>
@@ -203,10 +217,10 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                   {filtered.length===0&&<tr><td colSpan={7} className="td-empty">✦ No records yet</td></tr>}
                   {filtered.map(rec=>(
                     <tr key={rec._id}>
-                      <td className="td-date">{rec.date}</td>
+                      <td className="td-date" title={rec.date}>{relDate(rec.date)}</td>
                       <td><a href={rec.website} target="_blank" className="td-link">{rec.name}</a></td>
                       <td className="td-sub" style={{textTransform:'capitalize'}}>{rec.category}</td>
-                      <td className="td-sub">{rec.emailsSent}</td>
+                      <td className="td-sub" title={rec.emailsSent}>{rec.emailsSent?.length > 30 ? rec.emailsSent.substring(0, 28) + "…" : rec.emailsSent}</td>
                       <td><span className={SC[rec.status]||'status-pill status-nocontact'}>{rec.status}</span></td>
                       <td>
                         {rec.aiStatus?(
@@ -225,6 +239,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                       </td>
                       <td>
                         {rec.status==='Sent'&&<button className="td-action" onClick={()=>{setSelected(rec);setNote(rec.note||'')}}>Mark replied →</button>}
+                        {rec.status==='Replied'&&rec.replyPreview&&!rec.aiNextStep&&<div title={rec.replyPreview} style={{fontSize:10,color:'var(--text-2)',maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontStyle:'italic'}}>"{rec.replyPreview.substring(0,80)}"</div>}
                         {rec.aiNextStep&&<div title={rec.aiNextStep} style={{fontSize:10,color:'var(--accent)',marginTop:2,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{rec.aiNextStep}</div>}
                       </td>
                     </tr>
