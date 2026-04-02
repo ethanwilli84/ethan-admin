@@ -57,7 +57,8 @@ export async function GET(req: NextRequest) {
                 raw = Buffer.from(raw.replace(/\s/g, ''), 'base64').toString('utf-8')
               } catch {}
             }
-            // Decode quoted-printable (=E2=80=99 style)
+            // Decode quoted-printable: soft line breaks (=\r?\n) and hex codes (=E2=80=99)
+            raw = raw.replace(/=\r?\n/g, '')  // remove soft line breaks first
             raw = raw.replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
             // Strip HTML tags and entities
             raw = raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&[a-z]+;/gi, '')
