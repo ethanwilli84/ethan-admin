@@ -121,8 +121,7 @@ export default function DevPanel() {
                   textDecoration:'none', fontFamily:'var(--font-dm-mono)',
                 }}
               >
-                <span>✦</span>
-                <span>Open Claude chat (project knowledge)</span>
+                <span>✦ Open Claude chat (project knowledge)</span>
                 <span style={{marginLeft:'auto'}}>↗</span>
               </a>
             </div>

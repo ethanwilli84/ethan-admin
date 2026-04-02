@@ -212,7 +212,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                         {rec.aiStatus?(
                           <div>
                             <span className={AC[rec.aiStatus]||'ai-pill ai-cold'}>{rec.aiStatus}</span>
-                            {rec.aiSummary&&<div style={{fontSize:10,color:'var(--text-3)',marginTop:2,maxWidth:160}}>{rec.aiSummary}</div>}
+                            {rec.aiSummary&&<div title={rec.aiSummary} style={{fontSize:10,color:'var(--text-3)',marginTop:2,maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{rec.aiSummary}</div>}
                             <button className="td-action" style={{marginTop:4,fontSize:9,opacity:0.6}} onClick={()=>analyzeReply(rec)} disabled={analyzingId===rec._id}>
                               {analyzingId===rec._id?'◌':'↺ Re-analyze'}
                             </button>
@@ -225,7 +225,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                       </td>
                       <td>
                         {rec.status==='Sent'&&<button className="td-action" onClick={()=>{setSelected(rec);setNote(rec.note||'')}}>Mark replied →</button>}
-                        {rec.aiNextStep&&<div style={{fontSize:10,color:'var(--accent)',marginTop:2}}>{rec.aiNextStep}</div>}
+                        {rec.aiNextStep&&<div title={rec.aiNextStep} style={{fontSize:10,color:'var(--accent)',marginTop:2,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{rec.aiNextStep}</div>}
                       </td>
                     </tr>
                   ))}

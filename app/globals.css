@@ -160,12 +160,12 @@ input, textarea, select { font-family: inherit; }
   font-family: var(--font-dm-mono), monospace;
 }
 .stat-value {
-  font-family: var(--font-syne), sans-serif;
+  font-family: var(--font-dm-mono), monospace;
   font-size: 32px;
-  font-weight: 700;
+  font-weight: 500;
   margin-top: 8px;
   color: var(--text);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 /* ── PAGE HEADER ── */
