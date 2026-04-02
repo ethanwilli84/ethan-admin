@@ -63,6 +63,30 @@ const DEFAULTS = {
   paused: false,
 }
 
+
+// Build full research prompt from plain-English objective
+function buildResearchPrompt(objective: string, perSession: number): string {
+  const base = objective || `Find podcast shows and speaking events for a 20-year-old NYC entrepreneur (Ethan Williams, $5M+ software company, The Taco Project community). Target 1k-100k audience, actively booking guests.`
+  return `${base}
+
+Already contacted (skip these): {already_contacted}
+
+Search the web to find {per_session} new options matching the above criteria.`.replace('{per_session}', String(perSession))
+}
+
+// Build full contact prompt from plain-English objective
+function buildContactPrompt(objective: string): string {
+  const base = objective || `Find the host, booking manager, or guest coordinator. Check contact/booking pages first. Try common email patterns like booking@, contact@, guests@, or [firstname]@domain.com.`
+  return `Find contact email addresses for "{name}" ({website}).
+
+${base}
+
+Contact page to check: {contact_page}
+
+Return ONLY a valid JSON array, max 4 contacts, no other text:
+[{"email":"...","name":"First Last or null","role":"host/producer/booking/general","confidence":"high/medium/low"}]`
+}
+
 export async function GET(req: NextRequest) {
   const campaign = req.nextUrl.searchParams.get('campaign') || 'influence-outreach'
   const db = await getDb()
@@ -73,12 +97,23 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { campaign, ...settings } = body
+  const { campaign, researchObjective, contactObjective, perSession, ...settings } = body
+  // Build full prompts from plain-English objectives
+  const builtSettings: Record<string, unknown> = { ...settings }
+  if (researchObjective !== undefined) {
+    builtSettings.researchObjective = researchObjective
+    builtSettings.researchPrompt = buildResearchPrompt(researchObjective, perSession ?? 15)
+  }
+  if (contactObjective !== undefined) {
+    builtSettings.contactObjective = contactObjective
+    builtSettings.contactPrompt = buildContactPrompt(contactObjective)
+  }
+  if (perSession !== undefined) builtSettings.perSession = perSession
   if (!campaign) return NextResponse.json({ ok: false, error: 'missing campaign' }, { status: 400 })
   const db = await getDb()
   // Merge with existing so partial saves don't wipe other fields
   const existing = await db.collection('campaign_settings').findOne({ campaign, key: 'config' })
-  const merged = { ...(existing?.value ?? {}), ...settings }
+  const merged = { ...(existing?.value ?? {}), ...builtSettings }
   await db.collection('campaign_settings').updateOne(
     { campaign, key: 'config' },
     { $set: { campaign, key: 'config', value: merged, updatedAt: new Date() } },

@@ -5,7 +5,7 @@ import Link from 'next/link'
 interface Campaign { slug: string; name: string; icon: string; githubRepo: string; githubWorkflow: string; active: boolean }
 interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; byCategory: {_id:string;count:number}[]; byStatus: {_id:string;count:number}[] }
 interface Rec { _id: string; date: string; name: string; category: string; website: string; emailsSent: string; status: string; note?: string; aiStatus?: string; aiSummary?: string; aiNextStep?: string; replyPreview?: string }
-interface Config { template: string; researchPrompt: string; contactPrompt: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean }
+interface Config { template: string; researchObjective: string; contactObjective: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean }
 interface ChatMsg { role: 'user'|'assistant'; content: string }
 
 const SC: Record<string,string> = { Sent:'status-pill status-sent', Replied:'status-pill status-replied', 'No Contact Found':'status-pill status-nocontact', 'Send Failed':'status-pill status-failed' }
@@ -19,7 +19,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [records, setRecords] = useState<Rec[]>([])
   const [campaign, setCampaign] = useState<Campaign|null>(null)
   const [filter, setFilter] = useState('All')
-  const [config, setConfig] = useState<Config>({ template:'', researchPrompt:'', contactPrompt:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
+  const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
   const [configSaved, setConfigSaved] = useState(false)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState('')
@@ -56,6 +56,11 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign:slug,...next})})
     setConfigSaved(true); setTimeout(()=>setConfigSaved(false),2000)
   }
+
+  async function togglePause() {
+    await saveConfig({ paused: !config.paused })
+  }
+
 
   async function triggerRun() {
     if (!campaign) return
@@ -116,23 +121,18 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
 
   return (
     <div>
-      <header className="header">
-        <div style={{display:'flex',alignItems:'center'}}>
-          <Link href="/" className="header-brand">Ethan Admin</Link>
-          <span className="header-sep">/</span>
-          <span className="header-page">{campaign?.icon} {campaign?.name}</span>
-          {config.paused&&<span className="badge-paused" style={{marginLeft:10}}>paused</span>}
+      <div className="page-header-bar">
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <Link href="/" style={{color:'var(--text-3)',textDecoration:'none',fontSize:13}}>← Campaigns</Link>
+          <span style={{color:'var(--border-hover)'}}>/</span>
+          <span style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:14}}>{campaign?.icon} {campaign?.name}</span>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          {triggerMsg&&<span style={{fontSize:12,color:triggerMsg.startsWith('✓')?'var(--green)':'var(--red)'}}>{triggerMsg}</span>}
-          <button className="btn-ghost" onClick={()=>saveConfig({paused:!config.paused})} style={{fontSize:12}}>
-            {config.paused?'▶ Resume':'⏸ Pause'}
-          </button>
-          <button className="btn-primary" onClick={triggerRun} disabled={triggering||config.paused}>
-            {triggering?'◌ Running...':'▶ Run Now'}
-          </button>
+          <button className="btn-ghost" style={{fontSize:12}} onClick={pullGmail}>⟳ Sync Gmail</button>
+          <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
+          <button className="btn-primary" style={{fontSize:12}} onClick={triggerRun} disabled={triggering}>{triggering?'◌ Running...':'▶ Run Now'}</button>
         </div>
-      </header>
+      </div>
 
       {stats&&(
         <div style={{background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'10px 32px',display:'flex',gap:32,alignItems:'center'}}>
@@ -315,20 +315,26 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               </div>
             </div>
 
-            {/* Research Prompt */}
+            {/* Research Objective - plain English */}
             <div className="card space-24">
-              <div className="section-label space-8">Research Prompt</div>
-              <div style={{fontSize:11,color:'var(--text-3)',marginBottom:10}}>What Claude uses to find outreach targets each run. Must end with a JSON format instruction.</div>
-              <textarea className="textarea" style={{height:200}} value={config.researchPrompt} onChange={e=>setConfig(p=>({...p,researchPrompt:e.target.value}))} />
+              <div className="section-label space-8">Who to Find</div>
+              <div style={{fontSize:11,color:'var(--text-3)',marginBottom:10}}>
+                Plain English description of the outreach targets you want. Claude handles all the search + formatting automatically.
+              </div>
+              <textarea className="textarea" style={{height:140}} value={config.researchObjective}
+                placeholder="e.g. Find podcasts about entrepreneurship and Gen Z business with 1k–100k listeners that actively book guests. Focus on NYC-based shows or fintech, sneakers, and lifestyle niches."
+                onChange={e=>setConfig(p=>({...p,researchObjective:e.target.value}))} />
             </div>
 
-            {/* Contact Finder Prompt */}
+            {/* Contact Objective - plain English */}
             <div className="card space-24">
-              <div className="section-label space-8">Contact Finder Prompt</div>
+              <div className="section-label space-8">How to Find Contact Emails</div>
               <div style={{fontSize:11,color:'var(--text-3)',marginBottom:10}}>
-                How Claude finds emails for each platform. Use <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{name}'}</code>, <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{website}'}</code>, <code style={{background:'var(--surface-2)',padding:'1px 4px',borderRadius:4}}>{'{contact_page}'}</code> as variables.
+                Plain English instructions for finding the right person to email. Claude handles the search and formatting.
               </div>
-              <textarea className="textarea" style={{height:200}} value={config.contactPrompt} onChange={e=>setConfig(p=>({...p,contactPrompt:e.target.value}))} />
+              <textarea className="textarea" style={{height:100}} value={config.contactObjective}
+                placeholder="e.g. Find the podcast host, booking manager, or guest coordinator. Look for booking@ or contact@ emails first. Prioritize high-confidence contacts."
+                onChange={e=>setConfig(p=>({...p,contactObjective:e.target.value}))} />
             </div>
 
             {/* Pitch Template */}

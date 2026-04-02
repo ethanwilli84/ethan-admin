@@ -504,3 +504,16 @@ td { padding: 13px 16px; color: var(--text); }
   margin-bottom: 10px;
 }
 .preview-field strong { color: var(--text); font-size: 11px; font-family: var(--font-dm-mono), monospace; text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 4px; }
+
+/* ─── PAGE HEADER BAR ─── */
+.page-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
