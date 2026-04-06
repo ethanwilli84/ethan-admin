@@ -109,38 +109,63 @@ export default function DevPanel() {
   }, [open])
 
 
+  const [liveStatus, setLiveStatus] = useState('')
+
   async function send() {
     if (!input.trim() || loading) return
     const userMsg: ChatMsg = { role: 'user', content: input, image: pendingImage?.base64 }
     const newMsgs = [...msgs, userMsg]
-    setMsgs(newMsgs); setInput(''); setPendingImage(null); setLoading(true); setEvents([])
+    setMsgs(newMsgs); setInput(''); setPendingImage(null); setLoading(true); setEvents([]); setLiveStatus('Connecting...')
 
+    // Build messages for API — include image if present
     const apiMsgs = newMsgs.map(m => {
-      if (m.image) {
-        return {
-          role: m.role,
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: m.image } },
-            { type: 'text', text: m.content }
-          ]
-        }
-      }
+      if (m.image) return { role: m.role, content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: m.image } }, { type: 'text', text: m.content }] }
       return { role: m.role, content: m.content }
     })
 
+    // Use SSE streaming to avoid 30s timeout — tool calls stream in real time
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMsgs, devMode: true })
-      })
-      const d = await res.json()
-      setMsgs(prev => [...prev, { role: 'assistant', content: d.reply || d.error || 'Error' }])
-      if (d.events?.length) setEvents(d.events)
+      const params = new URLSearchParams({ stream: '1', messages: JSON.stringify(apiMsgs) })
+      const res = await fetch(`/api/chat?${params}`)
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      const toolLog: string[] = []
+      let currentEvent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) { currentEvent = line.slice(7).trim(); continue }
+          if (!line.startsWith('data: ')) continue
+          try {
+            const d = JSON.parse(line.slice(6))
+            
+            // Parse event type from previous line
+            if (currentEvent === 'status') setLiveStatus(d.text)
+            if (currentEvent === 'tool') { toolLog.push(d.text); setEvents([...toolLog]); setLiveStatus(d.text) }
+            if (currentEvent === 'tool_result') setLiveStatus(d.ok ? '✓ Done' : '✗ Error')
+            if (currentEvent === 'text') setLiveStatus('Writing response...')
+            if (currentEvent === 'error') setMsgs(prev => [...prev, { role: 'assistant', content: `Error: ${d.text}` }])
+            if (currentEvent === 'done') {
+              if (d.reply) setMsgs(prev => [...prev, { role: 'assistant', content: d.reply }])
+              setLiveStatus('')
+            }
+          } catch {}
+        }
+      }
     } catch (e) {
       setMsgs(prev => [...prev, { role: 'assistant', content: `Request failed: ${e}` }])
+      setLiveStatus('')
     }
-    setLoading(false)
+    setLoading(false); setLiveStatus('')
   }
 
   const panelW = 420
@@ -258,7 +283,13 @@ export default function DevPanel() {
                 </div>
               ))}
               {loading && (
-                <div style={{ display:'flex' }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {liveStatus && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'#080818', border:'1px solid #2a2a4e', borderRadius:10, fontSize:11, color:'#7788cc', fontFamily:'var(--font-dm-mono)' }}>
+                      <span style={{animation:'spin 1s linear infinite', display:'inline-block'}}>◌</span>
+                      <span style={{flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{liveStatus}</span>
+                    </div>
+                  )}
                   <div style={{ padding:'9px 13px', background:'#0f0f28', border:'1px solid #1a1a3e', borderRadius:'14px 14px 14px 3px', fontSize:12, color:'#4444aa' }}>
                     ◌ working...
                   </div>
