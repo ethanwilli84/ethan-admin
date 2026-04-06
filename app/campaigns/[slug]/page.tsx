@@ -358,7 +358,23 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div className="card">
                 <div className="section-label">By Category</div>
                 {stats.byCategory.length===0&&<div style={{color:'var(--text-3)',fontSize:13}}>No data yet</div>}
-                {stats.byCategory.map(c=>(<div key={c._id} className="bar-row"><span className="bar-label">{c._id}</span><div className="bar-track"><div className="bar-fill" style={{width:`${Math.min(100,(c.count/(stats.total||1))*100)}%`}}/></div><span className="bar-count">{c.count}</span></div>))}
+                {stats.byCategory.map((cat,i)=>{
+                    const pct = Math.min(100,(cat.count/(stats.total||1))*100)
+                    const colors = ['#5B4FE9','#00D4FF','#00C896','#FF6B6B','#FFB347','#A78BFA','#34D399']
+                    const color = colors[i % colors.length]
+                    const label = cat._id.replace(/_/g,' ').replace(/\w/g, (l:string)=>l.toUpperCase())
+                    return (
+                      <div key={cat._id} style={{marginBottom:10}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                          <span style={{fontSize:11,color:'var(--text-2)',fontWeight:500}}>{label}</span>
+                          <span style={{fontSize:12,fontFamily:'var(--font-dm-mono)',color:'var(--text-3)',fontWeight:600}}>{cat.count}</span>
+                        </div>
+                        <div style={{background:'var(--surface-2)',borderRadius:6,height:6,overflow:'hidden'}}>
+                          <div style={{height:'100%',borderRadius:6,background:color,width:`${pct}%`,transition:'width 0.6s ease'}}/>
+                        </div>
+                      </div>
+                    )
+                  })}
               </div>
               <div className="card">
                 <div className="section-label">By Status</div>
