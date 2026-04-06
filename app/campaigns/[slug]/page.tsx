@@ -27,6 +27,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [triggerMsg, setTriggerMsg] = useState('')
   const [logs, setLogs] = useState<{status:string;conclusion:string|null;lines:string[];startedAt:string;runId:number|null}>({status:'idle',conclusion:null,lines:[],startedAt:'',runId:null})
   const [logPolling, setLogPolling] = useState<NodeJS.Timeout|null>(null)
+  const [runStep, setRunStep] = useState('')
   const [selected, setSelected] = useState<Rec|null>(null)
   const [note, setNote] = useState('')
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
@@ -38,7 +39,11 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [naturalDate, setNaturalDate] = useState('')
   const chatEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { loadAll() }, [slug])
+  useEffect(() => {
+    loadAll()
+    // Check for active run on load and auto-start polling
+    fetchLogs().then((d: {status:string}) => { if (d?.status === 'in_progress') startLogPolling() })
+  }, [slug])
   useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:'smooth'}) }, [chatMsgs])
 
   async function loadAll() {
@@ -136,6 +141,16 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     const res = await fetch(`/api/run-logs?campaign=${slug}`)
     const d = await res.json()
     setLogs(d)
+    // Extract current step from logs
+    if (d.status === 'in_progress' && d.lines?.length) {
+      const last = [...d.lines].reverse().find((l:string) => l.trim() && !l.includes('◌') && !l.startsWith('#'))
+      if (last) setRunStep(last.substring(0, 60))
+    } else if (d.status === 'completed') {
+      const summary = d.lines?.find((l:string) => l.includes('Done') || l.includes('✅')) || ''
+      setRunStep(summary.substring(0, 60))
+    } else {
+      setRunStep('')
+    }
     return d
   }
 
@@ -238,8 +253,25 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
           <span style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:14}}>{campaign?.icon} {campaign?.name}</span>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {/* Run status pill */}
+          {logs.status==='in_progress'&&(
+            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(0,200,150,0.1)',border:'1px solid rgba(0,200,150,0.3)',borderRadius:20,padding:'3px 10px'}}>
+                <span style={{width:6,height:6,borderRadius:'50%',background:'var(--green)',animation:'pulse 1s infinite',display:'inline-block'}}/>
+                <span style={{fontSize:11,fontFamily:'var(--font-dm-mono)',color:'var(--green)',fontWeight:600}}>RUNNING</span>
+              </div>
+              {runStep&&<div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',maxWidth:240,textOverflow:'ellipsis',overflow:'hidden',whiteSpace:'nowrap',textAlign:'right'}}>{runStep}</div>}
+            </div>
+          )}
+          {logs.status==='completed'&&logs.conclusion&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,background:logs.conclusion==='success'?'rgba(0,200,150,0.08)':'rgba(255,71,87,0.08)',border:`1px solid ${logs.conclusion==='success'?'rgba(0,200,150,0.25)':'rgba(255,71,87,0.25)'}`,borderRadius:20,padding:'3px 10px'}}>
+              <span style={{fontSize:11,fontFamily:'var(--font-dm-mono)',color:logs.conclusion==='success'?'var(--green)':'var(--red)'}}>
+                {logs.conclusion==='success'?'✓ Done':'✗ Failed'}
+              </span>
+            </div>
+          )}
           <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
-          <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} disabled={triggering}>{triggering?'◌ Running...':'▶ Run Now'}</button>
+          <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} disabled={triggering||logs.status==='in_progress'}>{triggering?'◌ Queuing...':logs.status==='in_progress'?'◌ Running...':'▶ Run Now'}</button>
         </div>
       </div>
 
