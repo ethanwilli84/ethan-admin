@@ -42,7 +42,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   useEffect(() => {
     loadAll()
     // Check for active run on load and auto-start polling
-    fetchLogs().then((d: {status:string}) => { if (d?.status === 'in_progress') startLogPolling() })
+    fetchLogs().then((d: {status:string;runId:number|null}) => { if (d?.status === 'in_progress' && d.runId) startLogPolling() })
   }, [slug])
   useEffect(() => { chatEndRef.current?.scrollIntoView({behavior:'smooth'}) }, [chatMsgs])
 
@@ -168,9 +168,11 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     if (logPolling) clearInterval(logPolling)
     const interval = setInterval(async () => {
       const d = await fetchLogs()
-      if (d.status === 'completed') {
+      if (d.status === 'completed' || d.status === 'idle') {
         clearInterval(interval)
         setLogPolling(null)
+        // Keep final conclusion badge for 10s then clear
+        setTimeout(() => setRunStep(''), 10000)
       }
     }, 4000) // Poll every 4 seconds
     setLogPolling(interval)
