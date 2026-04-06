@@ -92,10 +92,14 @@ export async function POST(req: NextRequest) {
   }
 
   const hasPriorSent = sentMatches.length > 0
+  // Also skip if they've emailed US — indicates prior relationship (web form, inquiry, etc.)
+  // A lender who sent you 3 auto-notifications means you filled their form already
+  const hasPriorReceived = receivedMatches.length > 0
+  const shouldSkip = hasPriorSent || hasPriorReceived
 
   return NextResponse.json({
     ok: true,
-    shouldSkip: hasPriorSent,
+    shouldSkip,
     summary: {
       sentCount: sentMatches.length,
       receivedCount: receivedMatches.length,
@@ -104,10 +108,12 @@ export async function POST(req: NextRequest) {
     },
     sentHistory: sentMatches.slice(0, 5),
     receivedHistory: receivedMatches.slice(0, 3),
-    verdict: hasPriorSent
-      ? `SKIP — found ${sentMatches.length} prior sent email(s) to this contact/domain`
-      : receivedMatches.length > 0
-        ? `PROCEED WITH CAUTION — they've emailed you ${receivedMatches.length}x but you haven't sent to them`
-        : 'CLEAR — no prior email history found',
+    verdict: hasPriorSent && hasPriorReceived
+      ? `SKIP — active thread: ${sentMatches.length} sent, ${receivedMatches.length} received`
+      : hasPriorSent
+        ? `SKIP — found ${sentMatches.length} prior sent email(s) (no reply from them)`
+        : hasPriorReceived
+          ? `SKIP — received ${receivedMatches.length} email(s) from them (likely filled their web form or they know you)`
+          : 'CLEAR — no prior email history found',
   })
 }
