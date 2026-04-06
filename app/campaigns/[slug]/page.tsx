@@ -155,8 +155,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   }
 
   async function runNowWithLogs() {
+    if (config.paused) {
+      // Auto-unpause before running so it doesn't skip
+      await saveConfig({ paused: false })
+      await new Promise(r => setTimeout(r, 500)) // brief pause for save
+    }
     await triggerRun()
-    // Start polling logs after a brief delay for GH to register the run
     setTimeout(() => startLogPolling(), 3000)
   }
 
@@ -271,7 +275,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             </div>
           )}
           <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
-          <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} disabled={triggering||logs.status==='in_progress'}>{triggering?'◌ Queuing...':logs.status==='in_progress'?'◌ Running...':'▶ Run Now'}</button>
+          <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} 
+            disabled={triggering}
+            title={logs.status==='in_progress'?'A run is active — clicking will queue another':'Run campaign now'}
+          >
+            {triggering?'◌ Queuing...':logs.status==='in_progress'?'▶ Run Again':'▶ Run Now'}
+          </button>
         </div>
       </div>
 
@@ -288,6 +297,14 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             {gmailStatus?.needsSetup&&<span style={{fontSize:11,color:'var(--amber)'}}>Gmail not configured</span>}
             {gmailStatus?.count!==undefined&&!gmailStatus.needsSetup&&<span style={{fontSize:11,color:'var(--green)'}}>{gmailStatus.count} replies found</span>}
           </div>
+        </div>
+      )}
+
+      {config.paused&&(
+        <div style={{background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',padding:'8px 32px',display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:13}}>⏸</span>
+          <span style={{fontSize:12,color:'#f59e0b',fontWeight:500}}>Campaign is paused — outreach is not running automatically</span>
+          <button onClick={togglePause} style={{marginLeft:'auto',background:'rgba(255,170,0,0.15)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:8,color:'#f59e0b',fontSize:11,padding:'4px 12px',cursor:'pointer',fontWeight:600}}>▶ Resume Campaign</button>
         </div>
       )}
 
