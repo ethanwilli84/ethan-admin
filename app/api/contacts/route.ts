@@ -32,6 +32,45 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // Atomic check-and-record — prevents race conditions between two campaigns
+  // running simultaneously checking the same email before either records it
+  if (action === 'check_and_record') {
+    const windowDays = dedupWindowDays ?? 90
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)
+    const emailNorm = email.toLowerCase().trim()
+    
+    // Check first
+    const existing = await db.collection('contacted_contacts').findOne({
+      email: emailNorm,
+      contactedAt: { $gte: since },
+    })
+    if (existing) {
+      return NextResponse.json({
+        alreadyContacted: true,
+        recorded: false,
+        lastContact: { campaign: existing.campaign, platform: existing.platformName, channel: existing.channel, date: existing.contactedAt }
+      })
+    }
+    
+    // Not contacted — record it now atomically using upsert
+    // This way even if two campaigns race, only one wins the insert
+    try {
+      await db.collection('contacted_contacts').insertOne({
+        email: emailNorm,
+        channel: channel || 'email',
+        campaign, platformName,
+        contactedAt: new Date(),
+      })
+      return NextResponse.json({ alreadyContacted: false, recorded: true })
+    } catch (err: unknown) {
+      // Duplicate key = another campaign just recorded it (race condition caught)
+      if ((err as {code?: number}).code === 11000) {
+        return NextResponse.json({ alreadyContacted: true, recorded: false, raceCaught: true })
+      }
+      throw err
+    }
+  }
+
   if (action === 'record') {
     await db.collection('contacted_contacts').insertOne({
       email: email.toLowerCase().trim(),
