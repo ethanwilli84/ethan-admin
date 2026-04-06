@@ -25,6 +25,8 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [overlapInfo, setOverlapInfo] = useState<{risk:'high'|'medium'|'low'; conflicts:{name:string;time:string;days:string[];overlap:number}[]; suggestedTime:string}|null>(null)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState('')
+  const [logs, setLogs] = useState<{status:string;conclusion:string|null;lines:string[];startedAt:string;runId:number|null}>({status:'idle',conclusion:null,lines:[],startedAt:'',runId:null})
+  const [logPolling, setLogPolling] = useState<NodeJS.Timeout|null>(null)
   const [selected, setSelected] = useState<Rec|null>(null)
   const [note, setNote] = useState('')
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([])
@@ -130,6 +132,37 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     await saveConfig({ paused: !config.paused })
   }
 
+  async function fetchLogs() {
+    const res = await fetch(`/api/run-logs?campaign=${slug}`)
+    const d = await res.json()
+    setLogs(d)
+    return d
+  }
+
+  async function runNowWithLogs() {
+    await triggerRun()
+    // Start polling logs after a brief delay for GH to register the run
+    setTimeout(() => startLogPolling(), 3000)
+  }
+
+  function startLogPolling() {
+    if (logPolling) clearInterval(logPolling)
+    const interval = setInterval(async () => {
+      const d = await fetchLogs()
+      if (d.status === 'completed') {
+        clearInterval(interval)
+        setLogPolling(null)
+      }
+    }, 4000) // Poll every 4 seconds
+    setLogPolling(interval)
+    fetchLogs()
+  }
+
+  function stopLogPolling() {
+    if (logPolling) { clearInterval(logPolling); setLogPolling(null) }
+  }
+
+
 
   async function triggerRun() {
     if (!campaign) return
@@ -206,7 +239,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
-          <button className="btn-primary" style={{fontSize:12}} onClick={triggerRun} disabled={triggering}>{triggering?'◌ Running...':'▶ Run Now'}</button>
+          <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} disabled={triggering}>{triggering?'◌ Running...':'▶ Run Now'}</button>
         </div>
       </div>
 
@@ -228,7 +261,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
 
       <div className="tabs">
         {(['dashboard','outreach','settings','chat'] as const).map(t=>(
-          <button key={t} className={`tab ${tab===t?'active':''}`} onClick={()=>setTab(t)}>
+          <button key={t} className={`tab ${tab===t?'active':''}`} onClick={()=>{setTab(t);if(t==='dashboard')fetchLogs()}}>
             {t==='dashboard'?'◈ Dashboard':t==='outreach'?'◎ Outreach':t==='settings'?'⚙ Settings':'✦ AI Chat'}
           </button>
         ))}
@@ -249,23 +282,47 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div className="card">
                 <div className="section-label">By Category</div>
                 {stats.byCategory.length===0&&<div style={{color:'var(--text-3)',fontSize:13}}>No data yet</div>}
-                {stats.byCategory.map(c=>(
-                  <div key={c._id} className="bar-row">
-                    <span className="bar-label">{c._id}</span>
-                    <div className="bar-track"><div className="bar-fill" style={{width:`${Math.min(100,(c.count/(stats.total||1))*100)}%`}}/></div>
-                    <span className="bar-count">{c.count}</span>
-                  </div>
-                ))}
+                {stats.byCategory.map(c=>(<div key={c._id} className="bar-row"><span className="bar-label">{c._id}</span><div className="bar-track"><div className="bar-fill" style={{width:`${Math.min(100,(c.count/(stats.total||1))*100)}%`}}/></div><span className="bar-count">{c.count}</span></div>))}
               </div>
               <div className="card">
                 <div className="section-label">By Status</div>
-                {stats.byStatus.map(s=>(
-                  <div key={s._id} className="status-row">
-                    <span className={SC[s._id]||'status-pill status-nocontact'} style={{fontSize:12}}>{s._id}</span>
-                    <span className="status-row-val">{s.count}</span>
-                  </div>
-                ))}
+                {stats.byStatus.map(s=>(<div key={s._id} className="status-row"><span className={SC[s._id]||'status-pill status-nocontact'} style={{fontSize:12}}>{s._id}</span><span className="status-row-val">{s.count}</span></div>))}
               </div>
+            </div>
+
+            {/* Live Run Logs */}
+            <div className="card fade-up" style={{marginTop:24}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:14}}>
+                    {logs.status==='in_progress'?'🟢':'🔵'} Run Logs
+                  </div>
+                  {logs.status==='in_progress'&&<span style={{fontFamily:'var(--font-dm-mono)',fontSize:10,color:'var(--green)',background:'rgba(0,200,150,0.1)',padding:'2px 8px',borderRadius:20}}>LIVE</span>}
+                  {logs.status==='completed'&&<span style={{fontFamily:'var(--font-dm-mono)',fontSize:10,color:logs.conclusion==='success'?'var(--green)':'var(--red)',background:logs.conclusion==='success'?'rgba(0,200,150,0.1)':'rgba(255,71,87,0.1)',padding:'2px 8px',borderRadius:20}}>{logs.conclusion?.toUpperCase()||'DONE'}</span>}
+                  {logs.startedAt&&<span style={{fontSize:11,color:'var(--text-3)'}}>{logs.startedAt.substring(0,16).replace('T',' ')}</span>}
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  {logs.status==='in_progress'&&logPolling&&<button className="btn-ghost" style={{fontSize:11,padding:'4px 10px'}} onClick={stopLogPolling}>⏹ Stop</button>}
+                  {!logPolling&&<button className="btn-ghost" style={{fontSize:11,padding:'4px 10px'}} onClick={startLogPolling}>{logPolling?'◌ Watching...':'↺ Check logs'}</button>}
+                </div>
+              </div>
+              {logs.lines.length===0&&logs.status==='idle'&&(
+                <div style={{fontFamily:'var(--font-dm-mono)',fontSize:11,color:'var(--text-3)',padding:'20px',textAlign:'center'}}>
+                  No active run. Hit ▶ Run Now to start a campaign and watch it live.
+                </div>
+              )}
+              {logs.lines.length>0&&(
+                <div style={{background:'#0a0a12',border:'1px solid #1a1a2e',borderRadius:10,padding:'12px 16px',maxHeight:300,overflowY:'auto',fontFamily:'var(--font-dm-mono)',fontSize:11,lineHeight:1.8}}>
+                  {logs.lines.map((line,i)=>{
+                    const isSuccess=line.includes('✅')||line.includes('✓ Sent')
+                    const isSkip=line.includes('⏭')||line.includes('⏸')
+                    const isError=line.includes('✗')||line.includes('Failed')
+                    const isHeader=line.includes('===')||line.includes('🚀')||line.includes('Orchestrator')
+                    const isProcessing=line.includes('Processing:')
+                    return (<div key={i} style={{color:isSuccess?'#00C896':isError?'#FF4757':isSkip?'#888':isHeader?'#a0a0ff':isProcessing?'#c0c0ff':'#6a6a8a',fontWeight:isHeader||isProcessing?600:400,paddingLeft:isSkip||isSuccess||isError?8:0,borderLeft:isSuccess?'2px solid #00C896':isError?'2px solid #FF4757':isSkip?'2px solid #444':'none'}}>{line}</div>)
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
