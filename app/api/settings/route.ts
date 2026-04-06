@@ -61,6 +61,8 @@ const DEFAULTS = {
   maxContactsPerPlatform: 3,
   skipLowConfidence: true,
   paused: false,
+  useFallbackEmails: true,
+  fallbackPrefixes: ['info', 'contact', 'hello', 'partnerships', 'business'],
 }
 
 

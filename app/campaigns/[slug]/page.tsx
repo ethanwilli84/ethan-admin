@@ -5,7 +5,7 @@ import Link from 'next/link'
 interface Campaign { slug: string; name: string; icon: string; githubRepo: string; githubWorkflow: string; active: boolean }
 interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; byCategory: {_id:string;count:number}[]; byStatus: {_id:string;count:number}[] }
 interface Rec { _id: string; date: string; name: string; category: string; website: string; emailsSent: string; status: string; note?: string; aiStatus?: string; aiSummary?: string; aiNextStep?: string; replyPreview?: string }
-interface Config { template: string; researchObjective: string; contactObjective: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean }
+interface Config { template: string; researchObjective: string; contactObjective: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean; useFallbackEmails: boolean; fallbackPrefixes: string[] }
 interface ChatMsg { role: 'user'|'assistant'; content: string }
 
 const SC: Record<string,string> = { Sent:'status-pill status-sent', Replied:'status-pill status-replied', 'No Contact Found':'status-pill status-nocontact', 'Send Failed':'status-pill status-failed' }
@@ -20,7 +20,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [campaign, setCampaign] = useState<Campaign|null>(null)
   const [filter, setFilter] = useState('All')
   const [search, setSearch] = useState('')
-  const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
+  const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false, useFallbackEmails:true, fallbackPrefixes:['info','contact','hello','partnerships','business'] })
   const [configSaved, setConfigSaved] = useState(false)
   const [spellIssues, setSpellIssues] = useState<string[]>([])
   const [overlapInfo, setOverlapInfo] = useState<{risk:'high'|'medium'|'low'; conflicts:{name:string;time:string;days:string[];overlap:number}[]; suggestedTime:string}|null>(null)
@@ -530,6 +530,46 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                     <span style={{fontSize:11,color:'var(--text-3)'}}>skip contacts AI rates as "low" confidence</span>
                   </div>
                 </div>
+              </div>
+              {/* Fallback emails when no contact found */}
+              <div className="space-16">
+                <div className="settings-label" style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                  If No Contact Found
+                  <button className={config.useFallbackEmails?'chip active':'chip'} style={{fontSize:11}} onClick={()=>setConfig(p=>({...p,useFallbackEmails:!p.useFallbackEmails}))}>
+                    {config.useFallbackEmails?'✓ Try guessed emails':'Skip — log as No Contact'}
+                  </button>
+                </div>
+                {config.useFallbackEmails&&(
+                  <div>
+                    <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8}}>
+                      Prefixes to try at the company domain. Type and press Enter to add.
+                    </div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:6}}>
+                      {(config.fallbackPrefixes||[]).map((prefix,i)=>(
+                        <span key={i} style={{display:'flex',alignItems:'center',gap:4,background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:20,padding:'3px 10px',fontSize:12,fontFamily:'var(--font-dm-mono)'}}>
+                          {prefix}@
+                          <button onClick={()=>setConfig(prev=>({...prev,fallbackPrefixes:prev.fallbackPrefixes.filter((_,j)=>j!==i)}))} style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 1px'}}>✕</button>
+                        </span>
+                      ))}
+                      <input
+                        placeholder="+ add prefix"
+                        style={{background:'var(--surface-2)',border:'1px dashed var(--border)',borderRadius:20,padding:'3px 12px',fontSize:12,fontFamily:'var(--font-dm-mono)',color:'var(--text)',outline:'none',minWidth:120}}
+                        onKeyDown={e=>{
+                          if(e.key==='Enter'||e.key===','){
+                            const val=(e.target as HTMLInputElement).value.trim().toLowerCase().replace(/[@,\s]/g,'')
+                            if(val&&!(config.fallbackPrefixes||[]).includes(val))
+                              setConfig(p=>({...p,fallbackPrefixes:[...(p.fallbackPrefixes||[]),val]}))
+                            ;(e.target as HTMLInputElement).value=''
+                            e.preventDefault()
+                          }
+                        }}
+                      />
+                    </div>
+                    <div style={{fontSize:10,color:'var(--text-3)'}}>
+                      Suggestions: info · contact · hello · partnerships · business · investors · lending · support · sales · press · funding · hello
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-16">
                 <div className="settings-label">Send Days</div>
