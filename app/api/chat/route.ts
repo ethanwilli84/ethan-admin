@@ -38,72 +38,60 @@ async function callTool(name: string, input: Record<string, string>) {
 }
 
 
-// DEV MODE — uses SSE streaming to avoid 30s timeout
-// Each tool call sends an event so the browser gets live updates
-export async function GET(req: NextRequest) {
-  const url = new URL(req.url)
-  if (url.searchParams.get('stream') !== '1') return new NextResponse('use POST', { status: 400 })
+// GET removed — streaming now handled via POST with stream:true
 
-  const messages = JSON.parse(url.searchParams.get('messages') || '[]')
-
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    async start(controller) {
-      function send(event: string, data: unknown) {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-      }
-
-      const allMessages = [...messages]
-      let finalText = ''
-
-      try {
-        for (let i = 0; i < 12; i++) {
-          send('status', { text: `Thinking... (iteration ${i + 1})` })
-
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: DEV_SYSTEM, tools: DEV_TOOLS, messages: allMessages }),
-          })
-          const data = await res.json()
-          if (data.error) { send('error', { text: data.error.message }); break }
-
-          const textBlocks = data.content?.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('\n') || ''
-          if (textBlocks) { finalText = textBlocks; send('text', { text: textBlocks }) }
-
-          const toolUses = data.content?.filter((b: { type: string }) => b.type === 'tool_use') || []
-          if (!toolUses.length || data.stop_reason === 'end_turn') break
-
-          allMessages.push({ role: 'assistant', content: data.content })
-          const toolResults = []
-          for (const tu of toolUses) {
-            const label = `🔧 ${tu.name}(${tu.input?.path || tu.input?.message || tu.name === 'deploy' ? 'deploying...' : ''})`
-            send('tool', { text: label, tool: tu.name, input: tu.input })
-            const result = await callTool(tu.name, tu.input)
-            send('tool_result', { tool: tu.name, ok: !result.error, preview: JSON.stringify(result).substring(0, 80) })
-            toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) })
-          }
-          allMessages.push({ role: 'user', content: toolResults })
-        }
-      } catch (e: unknown) {
-        send('error', { text: (e as Error).message })
-      }
-
-      send('done', { reply: finalText })
-      controller.close()
-    }
-  })
-
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }
-  })
-}
 
 export async function POST(req: NextRequest) {
-  const { messages, campaign, devMode } = await req.json()
+  const body = await req.json()
+  const { messages, campaign, devMode, stream } = body
   const db = await getDb()
 
-  // Non-streaming dev mode fallback (for compatibility)
+  // STREAMING dev mode — avoids 30s timeout, supports images in messages
+  if (devMode && stream) {
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        function send(event: string, data: unknown) {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+        }
+        const allMessages = [...messages]
+        let finalText = ''
+        try {
+          for (let i = 0; i < 12; i++) {
+            send('status', { text: `Thinking... (step ${i + 1})` })
+            const res = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
+              body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: DEV_SYSTEM, tools: DEV_TOOLS, messages: allMessages }),
+            })
+            const data = await res.json()
+            if (data.error) { send('error', { text: data.error.message }); break }
+            const textBlocks = data.content?.filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('\n') || ''
+            if (textBlocks) { finalText = textBlocks; send('text', { text: textBlocks }) }
+            const toolUses = data.content?.filter((b: { type: string }) => b.type === 'tool_use') || []
+            if (!toolUses.length || data.stop_reason === 'end_turn') break
+            allMessages.push({ role: 'assistant', content: data.content })
+            const toolResults = []
+            for (const tu of toolUses) {
+              const label = `${tu.name}(${tu.input?.path || tu.input?.message || '...'})`
+              send('tool', { text: label, tool: tu.name, input: tu.input })
+              const result = await callTool(tu.name, tu.input)
+              send('tool_result', { tool: tu.name, ok: !result.error })
+              toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) })
+            }
+            allMessages.push({ role: 'user', content: toolResults })
+          }
+        } catch (e: unknown) { send('error', { text: (e as Error).message }) }
+        send('done', { reply: finalText })
+        controller.close()
+      }
+    })
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }
+    })
+  }
+
+  // Non-streaming dev mode fallback
   if (devMode) {
     const allMessages = [...messages]
     const events: string[] = []

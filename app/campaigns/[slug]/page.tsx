@@ -22,6 +22,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [search, setSearch] = useState('')
   const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
   const [configSaved, setConfigSaved] = useState(false)
+  const [spellIssues, setSpellIssues] = useState<string[]>([])
   const [overlapInfo, setOverlapInfo] = useState<{risk:'high'|'medium'|'low'; conflicts:{name:string;time:string;days:string[];overlap:number}[]; suggestedTime:string}|null>(null)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState('')
@@ -129,6 +130,25 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   async function saveConfig(patch?: Partial<Config>) {
     const next = {...config,...(patch||{})}
     if (patch) setConfig(next)
+    
+    // Spell + grammar check on email subject and template before saving
+    const textToCheck = [next.emailSubject, next.template].filter(Boolean).join('\n\n')
+    if (textToCheck.trim()) {
+      try {
+        const checkRes = await fetch('/api/chat', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ messages: [{role:'user',content:`Check for spelling and grammar errors ONLY in this text. List any errors found as bullet points. If no errors, reply with exactly "NO_ERRORS". Be brief, one line per issue. Text:\n\n${textToCheck}`}], campaign: slug })
+        })
+        const checkData = await checkRes.json()
+        const reply = checkData.reply?.trim() || ''
+        if (reply && reply !== 'NO_ERRORS' && !reply.toLowerCase().includes('no error')) {
+          setSpellIssues(reply.split('\n').filter((l:string) => l.trim()))
+          return // Block save until user acknowledges
+        }
+      } catch {} // If spell check fails, proceed with save anyway
+    }
+    
+    setSpellIssues([])
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign:slug,...next})})
     setConfigSaved(true); setTimeout(()=>setConfigSaved(false),2000)
   }
@@ -438,7 +458,17 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             {/* Save button sticky */}
             <div style={{display:'flex',justifyContent:'flex-end',marginBottom:20,gap:8}}>
               {configSaved&&<span style={{color:'var(--green)',fontSize:12,alignSelf:'center'}}>✓ Saved</span>}
-              <button className="btn-primary" onClick={()=>saveConfig()}>Save All Settings</button>
+              {spellIssues.length>0&&(
+                <div style={{background:'rgba(255,170,0,0.1)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:10,padding:'12px 16px',marginBottom:12}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'#f59e0b',marginBottom:6}}>⚠ Issues found before sending:</div>
+                  {spellIssues.map((issue,i)=><div key={i} style={{fontSize:12,color:'var(--text-2)',marginBottom:2}}>• {issue}</div>)}
+                  <div style={{display:'flex',gap:8,marginTop:10}}>
+                    <button className="btn-ghost" style={{fontSize:11}} onClick={()=>{setSpellIssues([]);saveConfig()}}>Ignore & Save Anyway</button>
+                    <button className="btn-ghost" style={{fontSize:11}} onClick={()=>setSpellIssues([])}>Dismiss</button>
+                  </div>
+                </div>
+              )}
+              <button className="btn-primary" onClick={()=>saveConfig()}>{configSaved?'✓ Saved':'Save All Settings'}</button>
             </div>
 
             {/* Overlap Risk Banner */}
@@ -472,7 +502,10 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div className="section-label space-8">Schedule & Volume</div>
               <div className="grid-2 space-16">
                 <div>
-                  <div className="settings-label">Send Time</div>
+                  <div className="settings-label" style={{display:'flex',alignItems:'center',gap:6}}>
+                    Send Time
+                    <span style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',fontWeight:400}}>EST</span>
+                  </div>
                   <input type="time" className="settings-input" value={config.sendTime}
                     onChange={e=>{
                       const newConfig = {...config,sendTime:e.target.value}

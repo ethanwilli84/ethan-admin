@@ -123,10 +123,14 @@ export default function DevPanel() {
       return { role: m.role, content: m.content }
     })
 
-    // Use SSE streaming to avoid 30s timeout — tool calls stream in real time
+    // POST streaming — avoids 30s timeout + URL length limit with images
+    // Server sends SSE events as the agent works, browser reads them in real time
     try {
-      const params = new URLSearchParams({ stream: '1', messages: JSON.stringify(apiMsgs) })
-      const res = await fetch(`/api/chat?${params}`)
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMsgs, devMode: true, stream: true }),
+      })
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
 
       const reader = res.body.getReader()
