@@ -258,7 +258,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {/* Run status pill */}
-          {logs.status==='in_progress'&&(
+          {config.paused&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(255,170,0,0.1)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:20,padding:'3px 10px'}}>
+              <span style={{fontSize:11,fontFamily:'var(--font-dm-mono)',color:'#f59e0b',fontWeight:600}}>⏸ PAUSED — won't send</span>
+            </div>
+          )}
+          {!config.paused&&logs.status==='in_progress'&&(
             <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2}}>
               <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(0,200,150,0.1)',border:'1px solid rgba(0,200,150,0.3)',borderRadius:20,padding:'3px 10px'}}>
                 <span style={{width:6,height:6,borderRadius:'50%',background:'var(--green)',animation:'pulse 1s infinite',display:'inline-block'}}/>
