@@ -1,10 +1,11 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface ChatMsg { role: 'user'|'assistant'; content: string; image?: string }
 
-// This Claude chat URL — copy from your browser when the dev panel bugs out
 const CLAUDE_CHAT_URL = 'https://claude.ai/chat/d077d338-25af-4a74-b5ea-abfbf5bc5ab8'
+const STORAGE_KEY = 'dev-panel-msgs'
+const EVENTS_KEY = 'dev-panel-events'
 
 export default function DevPanel() {
   const [open, setOpen] = useState(false)
@@ -13,14 +14,45 @@ export default function DevPanel() {
   const [loading, setLoading] = useState(false)
   const [events, setEvents] = useState<string[]>([])
   const [pendingImage, setPendingImage] = useState<{base64: string; name: string}|null>(null)
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // Persist chat history to localStorage — survives page refresh
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) setMsgs(JSON.parse(saved))
+      const savedEvents = localStorage.getItem(EVENTS_KEY)
+      if (savedEvents) setEvents(JSON.parse(savedEvents))
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-50))) } catch {}
+  }, [msgs])
+
+  useEffect(() => {
+    try { localStorage.setItem(EVENTS_KEY, JSON.stringify(events.slice(-30))) } catch {}
+  }, [events])
 
   useEffect(() => { endRef.current?.scrollIntoView({behavior:'smooth'}) }, [msgs])
+
+  function clearHistory() {
+    setMsgs([])
+    setEvents([])
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(EVENTS_KEY) } catch {}
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    readImageFile(file)
+    e.target.value = '' // reset so same file can be re-selected
+  }
+
+  function readImageFile(file: File) {
     const reader = new FileReader()
     reader.onload = () => {
       const base64 = (reader.result as string).split(',')[1]
@@ -29,13 +61,60 @@ export default function DevPanel() {
     reader.readAsDataURL(file)
   }
 
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    // Only clear if leaving the panel itself, not a child
+    if (!panelRef.current?.contains(e.relatedTarget as Node)) {
+      setDragging(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(false)
+
+    // Handle dropped files
+    const files = Array.from(e.dataTransfer.files)
+    const imageFile = files.find(f => f.type.startsWith('image/'))
+    if (imageFile) { readImageFile(imageFile); return }
+
+    // Handle dropped image from browser (drag from web page)
+    const imgSrc = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain')
+    if (imgSrc && (imgSrc.startsWith('http') || imgSrc.startsWith('data:'))) {
+      setPendingImage({ base64: imgSrc.split(',')[1] || '', name: 'dragged-image.png' })
+    }
+  }, [])
+
+  // Also handle paste (Cmd+V screenshot)
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      if (!open) return
+      const items = Array.from(e.clipboardData?.items || [])
+      const imageItem = items.find(item => item.type.startsWith('image/'))
+      if (imageItem) {
+        const file = imageItem.getAsFile()
+        if (file) readImageFile(file)
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [open])
+
+
   async function send() {
     if (!input.trim() || loading) return
     const userMsg: ChatMsg = { role: 'user', content: input, image: pendingImage?.base64 }
     const newMsgs = [...msgs, userMsg]
     setMsgs(newMsgs); setInput(''); setPendingImage(null); setLoading(true); setEvents([])
 
-    // Build messages array for API, include image if present
     const apiMsgs = newMsgs.map(m => {
       if (m.image) {
         return {
@@ -49,14 +128,18 @@ export default function DevPanel() {
       return { role: m.role, content: m.content }
     })
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: apiMsgs, devMode: true })
-    })
-    const d = await res.json()
-    setMsgs(prev => [...prev, { role: 'assistant', content: d.reply || d.error || 'Error' }])
-    if (d.events?.length) setEvents(d.events)
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMsgs, devMode: true })
+      })
+      const d = await res.json()
+      setMsgs(prev => [...prev, { role: 'assistant', content: d.reply || d.error || 'Error' }])
+      if (d.events?.length) setEvents(d.events)
+    } catch (e) {
+      setMsgs(prev => [...prev, { role: 'assistant', content: `Request failed: ${e}` }])
+    }
     setLoading(false)
   }
 
@@ -64,65 +147,72 @@ export default function DevPanel() {
 
   return (
     <>
-      {/* Toggle button — only show when closed */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
           style={{
             position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
             width: 48, height: 48, borderRadius: '50%',
-            background: 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
-            border: 'none',
+            background: msgs.length > 0 ? 'linear-gradient(135deg,#3a3aaa,#5B4FE9)' : 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
+            border: msgs.length > 0 ? '2px solid #7B6FF0' : 'none',
             color: '#fff', fontSize: 18, cursor: 'pointer',
             boxShadow: '0 4px 24px rgba(91,79,233,0.5)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.2s',
           }}
-          title="Dev Agent"
+          title={msgs.length > 0 ? `Dev Agent (${msgs.length} messages)` : 'Dev Agent'}
         >
           ⌨
         </button>
       )}
 
       {/* Side panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: open ? panelW : 0,
-        overflow: 'hidden',
-        background: '#080818',
-        borderLeft: '1px solid #1a1a3e',
-        zIndex: 999,
-        transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
-        display: 'flex', flexDirection: 'column',
-      }}>
+      <div
+        ref={panelRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0,
+          width: open ? panelW : 0,
+          overflow: 'hidden',
+          background: dragging ? '#0f0f38' : '#080818',
+          borderLeft: dragging ? '2px solid #7B6FF0' : '1px solid #1a1a3e',
+          zIndex: 999,
+          transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
         {open && (
           <>
-            {/* Header */}
-            <div style={{
-              padding: '16px 18px 12px',
-              borderBottom: '1px solid #1a1a3e',
-              flexShrink: 0,
-            }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 8 }}>
-                <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:14, color:'#a0a0ff' }}>⌨ Dev Agent</div>
-                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                  <button onClick={() => setMsgs([])} style={{ background:'none', border:'1px solid #2a2a4e', borderRadius:6, color:'#5555aa', fontSize:10, padding:'3px 8px', cursor:'pointer' }}>Clear</button>
-                  <button onClick={() => setOpen(false)} style={{ background:'#1a1a3e', border:'1px solid #3a3a6e', borderRadius:8, color:'#9999cc', fontSize:14, cursor:'pointer', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }} title="Close panel">✕</button>
+            {/* Drag overlay hint */}
+            {dragging && (
+              <div style={{
+                position:'absolute',inset:0,zIndex:10,
+                display:'flex',alignItems:'center',justifyContent:'center',
+                background:'rgba(91,79,233,0.15)',
+                pointerEvents:'none',
+              }}>
+                <div style={{textAlign:'center',color:'#a0a0ff',fontSize:14,fontWeight:600}}>
+                  <div style={{fontSize:32,marginBottom:8}}>📎</div>
+                  Drop screenshot here
                 </div>
               </div>
-              {/* Link to this Claude chat */}
-              <a
-                href={CLAUDE_CHAT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex', alignItems:'center', gap:6,
-                  padding:'6px 10px', borderRadius:8,
-                  background:'#0f0f28', border:'1px solid #2a2a4e',
-                  color:'#5566bb', fontSize:11,
-                  textDecoration:'none', fontFamily:'var(--font-dm-mono)',
-                }}
-              >
+            )}
+
+            {/* Header */}
+            <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid #1a1a3e', flexShrink: 0 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 8 }}>
+                <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:14, color:'#a0a0ff' }}>
+                  ⌨ Dev Agent
+                  {msgs.length > 0 && <span style={{fontSize:10,marginLeft:8,color:'#5555aa',fontWeight:400}}>{msgs.length} msgs · saved</span>}
+                </div>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <button onClick={clearHistory} style={{ background:'none', border:'1px solid #2a2a4e', borderRadius:6, color:'#5555aa', fontSize:10, padding:'3px 8px', cursor:'pointer' }}>Clear</button>
+                  <button onClick={() => setOpen(false)} style={{ background:'#1a1a3e', border:'1px solid #3a3a6e', borderRadius:8, color:'#9999cc', fontSize:14, cursor:'pointer', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center' }} title="Close panel">✕</button>
+                </div>
+              </div>
+              <a href={CLAUDE_CHAT_URL} target="_blank" rel="noopener noreferrer"
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8, background:'#0f0f28', border:'1px solid #2a2a4e', color:'#5566bb', fontSize:11, textDecoration:'none', fontFamily:'var(--font-dm-mono)' }}>
                 <span>✦ Open Claude chat (project knowledge)</span>
                 <span style={{marginLeft:'auto'}}>↗</span>
               </a>
@@ -135,6 +225,9 @@ export default function DevPanel() {
                   <div style={{fontSize:28,marginBottom:8}}>⌨</div>
                   <div style={{color:'#7777bb',fontWeight:600,marginBottom:6}}>Dev Agent</div>
                   Reads/writes GitHub files, commits to main, auto-deploys.
+                  <div style={{marginTop:8,fontSize:11,color:'#3333aa'}}>
+                    📎 Drop a screenshot or paste (⌘V) to share context
+                  </div>
                   <div style={{marginTop:12,display:'flex',flexWrap:'wrap',gap:6,justifyContent:'center'}}>
                     {['Add a feature','Fix a bug','Show me the homepage code','Change the color scheme'].map(s => (
                       <button key={s} onClick={() => setInput(s)} style={{
@@ -186,10 +279,17 @@ export default function DevPanel() {
             <div style={{ padding:'12px 14px', borderTop:'1px solid #1a1a3e', flexShrink:0 }}>
               {pendingImage && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, padding:'6px 10px', background:'#0f0f28', borderRadius:8, border:'1px solid #2a2a4e' }}>
-                  <span style={{ fontSize:11, color:'#6677cc' }}>📎 {pendingImage.name}</span>
-                  <button onClick={() => setPendingImage(null)} style={{ marginLeft:'auto', background:'none', border:'none', color:'#5555aa', cursor:'pointer', fontSize:13 }}>✕</button>
+                  <img src={`data:image/png;base64,${pendingImage.base64}`} alt="preview"
+                    style={{width:32,height:32,objectFit:'cover',borderRadius:4,border:'1px solid #3a3a6e'}} />
+                  <span style={{ fontSize:11, color:'#6677cc', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    📎 {pendingImage.name}
+                  </span>
+                  <button onClick={() => setPendingImage(null)} style={{ background:'none', border:'none', color:'#5555aa', cursor:'pointer', fontSize:13 }}>✕</button>
                 </div>
               )}
+              <div style={{ fontSize:10, color:'#2a2a5e', textAlign:'center', marginBottom:6 }}>
+                Drop screenshot · paste ⌘V · or click 📎
+              </div>
               <div style={{ display:'flex', gap:6, alignItems:'flex-end' }}>
                 <button
                   onClick={() => fileRef.current?.click()}
