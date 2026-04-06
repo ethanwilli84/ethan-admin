@@ -43,9 +43,9 @@ Return ONLY a valid JSON array. Max 4 contacts. No other text:
 
 Only include emails you actually found or can reasonably guess from their domain pattern.`
 
-const DEFAULT_EMAIL_SUBJECT = 'Guest Appearance - Ethan Williams'
-const DEFAULT_SENDER_NAME = 'Ethan Williams'
-const DEFAULT_SENDER_EMAIL = 'ethan@sireapp.io'
+const DEFAULT_EMAIL_SUBJECT = ''  // empty — placeholder in UI shows the hint
+const DEFAULT_SENDER_NAME = ''  // empty — placeholder shows hint
+const DEFAULT_SENDER_EMAIL = ''  // empty — placeholder shows hint
 
 const DEFAULTS = {
   template: DEFAULT_TEMPLATE,

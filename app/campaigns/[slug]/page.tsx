@@ -506,15 +506,15 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div className="grid-2">
                 <div>
                   <div className="settings-label">Email Subject</div>
-                  <input type="text" className="settings-input" value={config.emailSubject} onChange={e=>setConfig(p=>({...p,emailSubject:e.target.value}))} placeholder="Guest Appearance - Ethan Williams" />
+                  <input type="text" className="settings-input" value={config.emailSubject} onChange={e=>setConfig(p=>({...p,emailSubject:e.target.value}))} placeholder="e.g. Guest Appearance - Ethan Williams" />
                 </div>
                 <div>
                   <div className="settings-label">Sender Name</div>
-                  <input type="text" className="settings-input" value={config.senderName} onChange={e=>setConfig(p=>({...p,senderName:e.target.value}))} placeholder="Ethan Williams" />
+                  <input type="text" className="settings-input" value={config.senderName} onChange={e=>setConfig(p=>({...p,senderName:e.target.value}))} placeholder="e.g. Ethan Williams" />
                 </div>
                 <div style={{gridColumn:'1/-1'}}>
                   <div className="settings-label">Sender Email</div>
-                  <input type="email" className="settings-input" value={config.senderEmail} onChange={e=>setConfig(p=>({...p,senderEmail:e.target.value}))} placeholder="ethan@sireapp.io" />
+                  <input type="email" className="settings-input" value={config.senderEmail} onChange={e=>setConfig(p=>({...p,senderEmail:e.target.value}))} placeholder="e.g. ethan@sireapp.io" />
                 </div>
               </div>
             </div>
