@@ -22,6 +22,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [search, setSearch] = useState('')
   const [config, setConfig] = useState<Config>({ template:'', researchObjective:'', contactObjective:'', emailSubject:'', senderName:'', senderEmail:'', sendTime:'09:00', sendDays:['mon','tue','wed','thu','fri'], endDate:null, perSession:15, maxContactsPerPlatform:3, skipLowConfidence:true, paused:false })
   const [configSaved, setConfigSaved] = useState(false)
+  const [overlapInfo, setOverlapInfo] = useState<{risk:'high'|'medium'|'low'; conflicts:{name:string;time:string;days:string[];overlap:number}[]; suggestedTime:string}|null>(null)
   const [triggering, setTriggering] = useState(false)
   const [triggerMsg, setTriggerMsg] = useState('')
   const [selected, setSelected] = useState<Rec|null>(null)
@@ -47,6 +48,75 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
     ])
     setCampaign(cs.find((c:Campaign)=>c.slug===slug)||null)
     setStats(st); setRecords(rc); setConfig(cfg)
+  }
+
+
+  async function checkOverlap(currentConfig: Config) {
+    // Fetch all campaigns to compare schedules
+    const allCampaigns = await fetch('/api/campaigns').then(r=>r.json()).catch(()=>[])
+    const others = allCampaigns.filter((c: {slug:string;name:string;_id:string}) => c.slug !== slug)
+    const conflicts: {name:string;time:string;days:string[];overlap:number}[] = []
+    
+    for (const other of others) {
+      try {
+        const res = await fetch(`/api/settings?campaign=${other.slug}`)
+        const otherConfig = await res.json()
+        if (otherConfig.paused) continue
+        
+        const myTime = currentConfig.sendTime || '09:00'
+        const theirTime = otherConfig.sendTime || '09:00'
+        
+        // Convert to minutes for comparison
+        const [myH, myM] = myTime.split(':').map(Number)
+        const [thH, thM] = theirTime.split(':').map(Number)
+        const myMins = myH * 60 + myM
+        const thMins = thH * 60 + thM
+        const timeDiff = Math.abs(myMins - thMins)
+        
+        if (timeDiff < 120) { // Within 2 hours = potential conflict
+          const myDays = new Set(currentConfig.sendDays || [])
+          const theirDays = otherConfig.sendDays || []
+          const sharedDays = theirDays.filter((d: string) => myDays.has(d))
+          
+          if (sharedDays.length > 0) {
+            conflicts.push({
+              name: other.name,
+              time: theirTime,
+              days: sharedDays,
+              overlap: timeDiff
+            })
+          }
+        }
+      } catch {}
+    }
+    
+    // Calculate risk level
+    const risk = conflicts.some(c => c.overlap < 30) ? 'high'
+               : conflicts.some(c => c.overlap < 90) ? 'medium'
+               : conflicts.length > 0 ? 'low' : 'low'
+    
+    let suggestedTime = '09:00'
+    const allTakenMins: number[] = []
+    for (const other of others) {
+      try {
+        const r = await fetch(`/api/settings?campaign=${other.slug}`)
+        const s = await r.json()
+        if (!s.paused) {
+          const [h,m] = (s.sendTime||'09:00').split(':').map(Number)
+          allTakenMins.push(h*60+m)
+        }
+      } catch {}
+    }
+    // Business hours candidates: 8am, 10am, 12pm, 2pm, 4pm
+    const candidates = [480,600,720,840,960]
+    const safe = candidates.find(t => allTakenMins.every(taken => Math.abs(t-taken) >= 120))
+    if (safe !== undefined) {
+      const h = Math.floor(safe/60).toString().padStart(2,'0')
+      const m = (safe%60).toString().padStart(2,'0')
+      suggestedTime = `${h}:${m}`
+    }
+    
+    setOverlapInfo({ risk: conflicts.length > 0 ? risk : 'low', conflicts, suggestedTime })
   }
 
   async function saveConfig(patch?: Partial<Config>) {
@@ -258,13 +328,44 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <button className="btn-primary" onClick={()=>saveConfig()}>Save All Settings</button>
             </div>
 
+            {/* Overlap Risk Banner */}
+            {overlapInfo&&overlapInfo.conflicts.length>0&&(
+              <div style={{
+                marginBottom:16,padding:'14px 18px',borderRadius:12,
+                background: overlapInfo.risk==='high'?'rgba(255,71,87,0.08)':overlapInfo.risk==='medium'?'rgba(255,170,0,0.08)':'rgba(0,200,150,0.06)',
+                border: `1px solid ${overlapInfo.risk==='high'?'rgba(255,71,87,0.3)':overlapInfo.risk==='medium'?'rgba(255,170,0,0.3)':'rgba(0,200,150,0.2)'}`,
+              }}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                  <span style={{fontSize:14}}>{overlapInfo.risk==='high'?'🚨':overlapInfo.risk==='medium'?'⚠️':'⚡'}</span>
+                  <span style={{fontWeight:700,fontSize:13,color:overlapInfo.risk==='high'?'var(--red)':overlapInfo.risk==='medium'?'#f59e0b':'var(--green)'}}>
+                    {overlapInfo.risk==='high'?'High':'Medium'} overlap risk
+                  </span>
+                </div>
+                {overlapInfo.conflicts.map((conflict,i)=>(
+                  <div key={i} style={{fontSize:12,color:'var(--text-2)',marginBottom:4}}>
+                    <strong>{conflict.name}</strong> runs at <code style={{background:'var(--surface-2)',padding:'1px 5px',borderRadius:4}}>{conflict.time}</code> — only {conflict.overlap} min apart on <strong>{conflict.days.join(', ')}</strong>
+                  </div>
+                ))}
+                <div style={{marginTop:10,display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:12,color:'var(--text-3)'}}>Guaranteed safe time:</span>
+                  <code style={{background:'var(--surface-2)',padding:'2px 8px',borderRadius:6,fontSize:12,fontFamily:'var(--font-dm-mono)',color:'var(--green)',fontWeight:600}}>{overlapInfo.suggestedTime}</code>
+                  <button className="chip" style={{fontSize:11,padding:'3px 10px'}} onClick={()=>setConfig(p=>({...p,sendTime:overlapInfo.suggestedTime}))}>Use this time</button>
+                </div>
+              </div>
+            )}
+
             {/* Schedule */}
             <div className="card space-24">
               <div className="section-label space-8">Schedule & Volume</div>
               <div className="grid-2 space-16">
                 <div>
                   <div className="settings-label">Send Time</div>
-                  <input type="time" className="settings-input" value={config.sendTime} onChange={e=>setConfig(p=>({...p,sendTime:e.target.value}))} />
+                  <input type="time" className="settings-input" value={config.sendTime}
+                    onChange={e=>{
+                      const newConfig = {...config,sendTime:e.target.value}
+                      setConfig(newConfig)
+                      checkOverlap(newConfig)
+                    }} />
                 </div>
                 <div>
                   <div className="settings-label">Platforms Per Run</div>
@@ -287,7 +388,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div className="space-16">
                 <div className="settings-label">Send Days</div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {['mon','tue','wed','thu','fri','sat','sun'].map(d=><button key={d} className={`chip ${config.sendDays?.includes(d)?'active':''}`} style={{padding:'4px 12px',fontSize:11,textTransform:'capitalize'}} onClick={()=>setConfig(p=>({...p,sendDays:p.sendDays?.includes(d)?p.sendDays.filter(x=>x!==d):[...(p.sendDays||[]),d]}))}>{d}</button>)}
+                  {['mon','tue','wed','thu','fri','sat','sun'].map(d=><button key={d} className={`chip ${config.sendDays?.includes(d)?'active':''}`} style={{padding:'4px 12px',fontSize:11,textTransform:'capitalize'}} onClick={()=>{const nd={...config,sendDays:config.sendDays?.includes(d)?config.sendDays.filter(x=>x!==d):[...(config.sendDays||[]),d]};setConfig(nd);checkOverlap(nd)}}>{d}</button>)}
                 </div>
               </div>
               <div>
