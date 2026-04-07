@@ -77,8 +77,10 @@ export async function GET(req: NextRequest) {
           filteredLines = doneIdx > runIdx ? lines.slice(runIdx, doneIdx + 1) : lines.slice(runIdx)
         }
       } else if (runStatus === 'in_progress') {
-        // Job running but this campaign hasn't started yet — it's queued
-        campaignIsRunning = false // not yet started
+        // Job running but this campaign hasn't started yet
+        // It could be: (a) queued behind another campaign, or (b) not in this run at all
+        // We mark it as queued — the DB lock check below handles case (b)
+        campaignIsRunning = false
         filteredLines = []
       }
     }
@@ -88,8 +90,17 @@ export async function GET(req: NextRequest) {
     if (campaign) {
       if (campaignIsRunning) effectiveStatus = 'in_progress'
       else if (campaignCompleted) effectiveStatus = 'completed'
-      else if (runStatus === 'in_progress') effectiveStatus = 'queued' // job running but campaign not started yet
-      else effectiveStatus = runStatus
+      else if (runStatus === 'in_progress') {
+        // Check if this specific campaign has an active DB lock (means it's actually running now)
+        // If no lock AND run has been going >5min, this campaign is likely NOT in this run
+        const runAge = createdAt ? (Date.now() - new Date(createdAt).getTime()) / 1000 : 0
+        if (runAge > 300) {
+          // Run has been going 5+ min — if campaign had no lines, it's probably not in this run
+          effectiveStatus = 'idle' // not in this run
+        } else {
+          effectiveStatus = 'queued' // run just started, might be coming
+        }
+      } else effectiveStatus = runStatus
     }
 
     return NextResponse.json({
