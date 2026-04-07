@@ -18,6 +18,7 @@ const NAV = [
     href: '/settings',
     items: [
       { label: 'Outreach Settings', href: '/settings', icon: '📡' },
+      { label: 'System Status', href: '/status', icon: '🟢' },
     ]
   },
 ]
