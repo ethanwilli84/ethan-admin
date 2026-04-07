@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 
 interface ServiceResult { id:string; name:string; url:string; status:'up'|'down'|'slow'; httpCode:number|null; responseMs:number; critical:boolean; category:string; error?:string }
-interface Metrics { stuckPayouts:number; newDefaults:number; pendingPayouts:number; todayLoans:number; ok:boolean }
+interface Metrics { failedToday:number; failedWeek:number; openChargebacks:number; pendingSessionLoans:number; pendingPayouts:number; newLoansToday:number; ok:boolean }
 interface CheckData { ok:boolean; checkedAt:string; results:ServiceResult[]; metrics:Metrics; summary:{ allClear:boolean; criticalDown:number; totalDown:number; totalSlow:number; totalUp:number } }
 interface HistoryCheck { checkedAt:string; summary:{ allClear:boolean; totalDown:number }; results:{id:string;status:string}[] }
 
@@ -140,10 +140,10 @@ export default function StatusPage() {
             <div className="section-label" style={{ marginBottom:14 }}>Alpine Business Health</div>
             <div className="card-grid card-grid-4">
               {[
-                { label:'Stuck Payouts', value: data.metrics.stuckPayouts, warn: data.metrics.stuckPayouts > 5, suffix:'> 4h' },
-                { label:'Pending Payouts', value: data.metrics.pendingPayouts, warn: false, suffix:'total' },
-                { label:'Defaults Today', value: data.metrics.newDefaults, warn: data.metrics.newDefaults > 3, suffix:'new' },
-                { label:'Loans Today', value: data.metrics.todayLoans, warn: false, suffix:'originated' },
+                { label:'Failed Payments Today', value: data.metrics.failedToday, warn: data.metrics.failedToday > 10, suffix:'transactions' },
+                { label:'Failed This Week', value: data.metrics.failedWeek, warn: data.metrics.failedWeek > 50, suffix:'transactions' },
+                { label:'Open Chargebacks', value: data.metrics.openChargebacks, warn: data.metrics.openChargebacks > 0, suffix:'pending response' },
+                { label:'Collector Queue', value: data.metrics.pendingSessionLoans, warn: data.metrics.pendingSessionLoans > 20, suffix:'unpaid loans' },
               ].map(m => (
                 <div key={m.label} style={{ padding:'12px 14px', borderRadius:10, background: m.warn ? 'rgba(255,71,87,0.08)' : 'rgba(0,200,150,0.06)', border:`1px solid ${m.warn ? 'rgba(255,71,87,0.3)' : 'rgba(0,200,150,0.2)'}` }}>
                   <div style={{ fontSize:10, color:'var(--text-3)', fontFamily:'var(--font-dm-mono)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>{m.label}</div>

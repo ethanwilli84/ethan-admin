@@ -33,19 +33,28 @@ async function checkService(svc: typeof SERVICES[0]): Promise<ServiceResult> {
 
 async function getBusinessMetrics(db: Awaited<ReturnType<typeof getDb>>) {
   try {
+    const { MongoClient } = await import('mongodb')
+    const alpineClient = new MongoClient(process.env.MONGODB_URI!.replace('/ethan-admin', '/sire-pay'))
+    await alpineClient.connect()
+    const alpine = alpineClient.db('sire-pay')
+
     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000)
     const todayStart = new Date(); todayStart.setHours(0,0,0,0)
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [stuckPayouts, newDefaults, pendingPayouts, todayLoans] = await Promise.all([
-      db.collection('transactions').countDocuments({ status: { $in: ['pending_payout','payout_initiated'] }, updatedAt: { $lt: fourHoursAgo } }).catch(() => 0),
-      db.collection('transactions').countDocuments({ status: { $in: ['defaulted','charged_off'] }, updatedAt: { $gte: todayStart } }).catch(() => 0),
-      db.collection('transactions').countDocuments({ status: 'pending_payout' }).catch(() => 0),
-      db.collection('transactions').countDocuments({ createdAt: { $gte: todayStart } }).catch(() => 0),
+    const [failedToday, failedWeek, openChargebacks, pendingSessionLoans, pendingPayouts, newLoansToday] = await Promise.all([
+      alpine.collection('transactions').countDocuments({ status: 'FAILED', createdAt: { $gte: todayStart } }).catch(() => 0),
+      alpine.collection('transactions').countDocuments({ status: 'FAILED', createdAt: { $gte: weekAgo } }).catch(() => 0),
+      alpine.collection('chargebacks').countDocuments({ status: 'pending' }).catch(() => 0),
+      alpine.collection('sessionloans').countDocuments({ status: 'PENDING' }).catch(() => 0),
+      alpine.collection('payouts').countDocuments({ status: { $in: [null, 'pending'] }, updatedAt: { $lt: fourHoursAgo } }).catch(() => 0),
+      alpine.collection('transactions').countDocuments({ status: 'SUCCESS', createdAt: { $gte: todayStart } }).catch(() => 0),
     ])
 
-    return { stuckPayouts, newDefaults, pendingPayouts, todayLoans, ok: true }
+    await alpineClient.close()
+    return { failedToday, failedWeek, openChargebacks, pendingSessionLoans, pendingPayouts, newLoansToday, ok: true }
   } catch (e: unknown) {
-    return { stuckPayouts: 0, newDefaults: 0, pendingPayouts: 0, todayLoans: 0, ok: false, error: (e as Error).message }
+    return { failedToday: 0, failedWeek: 0, openChargebacks: 0, pendingSessionLoans: 0, pendingPayouts: 0, newLoansToday: 0, ok: false, error: (e as Error).message }
   }
 }
 
@@ -61,7 +70,7 @@ export async function GET(req: NextRequest) {
   const failures = results.filter(r => r.status === 'down')
   const slow = results.filter(r => r.status === 'slow')
   const criticalDown = failures.filter(r => r.critical)
-  const allClear = failures.length === 0 && metrics.stuckPayouts <= 5 && metrics.newDefaults <= 3
+  const allClear = failures.length === 0 && (metrics.openChargebacks || 0) === 0 && (metrics.failedToday || 0) <= 15
 
   const payload = {
     checkedAt: new Date(),
