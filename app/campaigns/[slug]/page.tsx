@@ -208,7 +208,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   async function triggerRun() {
     if (!campaign) return
     setTriggering(true); setTriggerMsg('')
-    const res = await fetch('/api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo:campaign.githubRepo,workflow:campaign.githubWorkflow})})
+    const res = await fetch('/api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo:campaign.githubRepo,workflow:campaign.githubWorkflow,campaignSlug:slug})})
     const d = await res.json()
     setTriggerMsg(d.ok?'✓ Run triggered':'✗ Failed')
     setTriggering(false); setTimeout(()=>setTriggerMsg(''),4000)

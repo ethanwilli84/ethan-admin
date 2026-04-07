@@ -51,8 +51,27 @@ async function getBusinessMetrics(db: Awaited<ReturnType<typeof getDb>>) {
       alpine.collection('transactions').countDocuments({ status: 'SUCCESS', createdAt: { $gte: todayStart } }).catch(() => 0),
     ])
 
+    // Plaid bank monitoring — check for unusual transactions and data staleness
+    let plaidLastSync: string | null = null
+    let plaidDuplicates = 0
+    let plaidLargeUnusual = 0
+    try {
+      const latestPlaid = await alpine.collection('plaidtransactions').findOne(
+        { phoneNumber: '+17346645129' }, { sort: { date: -1 } }
+      )
+      if (latestPlaid?.date) plaidLastSync = new Date(latestPlaid.date).toISOString().split('T')[0]
+
+      // Check for large unexpected positive (outbound) transactions > $50k in last 30 days
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      plaidLargeUnusual = await alpine.collection('plaidtransactions').countDocuments({
+        phoneNumber: '+17346645129',
+        amount: { $gt: 50000 },
+        date: { $gte: thirtyDaysAgo }
+      }).catch(() => 0)
+    } catch {}
+
     await alpineClient.close()
-    return { failedToday, failedWeek, openChargebacks, pendingSessionLoans, pendingPayouts, newLoansToday, ok: true }
+    return { failedToday, failedWeek, openChargebacks, pendingSessionLoans, pendingPayouts, newLoansToday, plaidLastSync, plaidDuplicates, plaidLargeUnusual, ok: true }
   } catch (e: unknown) {
     return { failedToday: 0, failedWeek: 0, openChargebacks: 0, pendingSessionLoans: 0, pendingPayouts: 0, newLoansToday: 0, ok: false, error: (e as Error).message }
   }
