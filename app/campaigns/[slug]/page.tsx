@@ -35,6 +35,8 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string|null>(null)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [copied, setCopied] = useState(false)
   const [gmailStatus, setGmailStatus] = useState<{needsSetup?:boolean;count?:number}|null>(null)
   const [pullLoading, setPullLoading] = useState(false)
   const [naturalDate, setNaturalDate] = useState('')
@@ -427,9 +429,24 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
 
         {tab==='outreach'&&(
           <div className="fade-up">
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-              <span className="page-sub">{records.length} total · {repliedCount} replied</span>
-              <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:10,flexWrap:'wrap'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span className="page-sub">{records.length} total · {repliedCount} replied</span>
+                {checkedIds.size > 0 && (
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:12,color:'var(--accent)',fontFamily:'var(--font-dm-mono)',fontWeight:600}}>{checkedIds.size} selected</span>
+                    <button onClick={()=>{
+                      const names = filtered.filter(r=>checkedIds.has(r._id)).map(r=>r.name).join('\n')
+                      navigator.clipboard.writeText(names)
+                      setCopied(true); setTimeout(()=>setCopied(false),2000)
+                    }} style={{fontSize:11,padding:'3px 10px',borderRadius:6,background:'var(--accent)',color:'#fff',border:'none',cursor:'pointer',fontFamily:'var(--font-dm-mono)'}}>
+                      {copied ? '✓ Copied!' : '⎘ Copy names'}
+                    </button>
+                    <button onClick={()=>setCheckedIds(new Set())} style={{fontSize:11,padding:'3px 8px',borderRadius:6,background:'none',border:'1px solid var(--border)',color:'var(--text-3)',cursor:'pointer'}}>Clear</button>
+                  </div>
+                )}
+              </div>
+              <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
                 <input className="settings-input" style={{width:200,fontSize:12,padding:'6px 12px'}} placeholder="Search platforms..." value={search} onChange={e=>setSearch(e.target.value)}/>
                 <div className="filters" style={{display:'flex',gap:6,flexWrap:'wrap'}}>{statuses.map(s=><button key={s} className={`chip ${filter===s?'active':''}`} onClick={()=>setFilter(s)}>{s}</button>)}</div>
                 {search&&<button onClick={()=>setSearch('')} style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:12}}>✕</button>}
@@ -437,12 +454,35 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             </div>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Platform</th><th>Category</th><th>Contacts</th><th>Status</th><th>AI Status</th><th>Next Step</th></tr></thead>
+                <thead><tr>
+  <th style={{width:32,paddingRight:4}}>
+    <input type="checkbox" style={{cursor:'pointer'}}
+      checked={checkedIds.size > 0 && filtered.every(r=>checkedIds.has(r._id))}
+      onChange={e=>{
+        if(e.target.checked) setCheckedIds(new Set(filtered.map(r=>r._id)))
+        else setCheckedIds(new Set())
+      }}
+    />
+  </th>
+  <th>Date</th><th>Platform</th><th>Category</th><th>Contacts</th><th>Status</th><th>AI Status</th><th>Next Step</th>
+</tr></thead>
                 <tbody>
-                  {filtered.length===0&&<tr><td colSpan={7} className="td-empty">✦ No records yet</td></tr>}
+                  {filtered.length===0&&<tr><td colSpan={8} className="td-empty">✦ No records yet</td></tr>}
                   {filtered.map(rec=>(
-                    <tr key={rec._id}>
-                      <td className="td-date" title={rec.date}>{relDate(rec.date)}</td>
+                    <tr key={rec._id} style={{background:checkedIds.has(rec._id)?'rgba(91,79,233,0.06)':undefined}}>
+                      <td style={{width:32,paddingRight:4}} onClick={e=>e.stopPropagation()}>
+                        <input type="checkbox" style={{cursor:'pointer'}}
+                          checked={checkedIds.has(rec._id)}
+                          onChange={e=>{
+                            setCheckedIds(prev=>{
+                              const next=new Set(prev)
+                              e.target.checked ? next.add(rec._id) : next.delete(rec._id)
+                              return next
+                            })
+                          }}
+                        />
+                      </td>
+                      <td className="td-date"  title={rec.date}>{relDate(rec.date)}</td>
                       <td><a href={rec.website} target="_blank" className="td-link">{rec.name}</a></td>
                       <td className="td-sub" style={{textTransform:'capitalize'}}>{rec.category}</td>
                       <td className="td-sub" title={rec.emailsSent}>{rec.emailsSent?.length > 30 ? rec.emailsSent.substring(0, 28) + "…" : rec.emailsSent}</td>
