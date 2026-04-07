@@ -35,74 +35,11 @@ Respond ONLY with JSON, no other text. No markdown.`,
   } catch { return null }
 }
 
-// ── iMessage sync ────────────────────────────────────────────────────────────
-async function syncIMessages(hoursBack = 48): Promise<number> {
-  const db = await getDb()
-  let count = 0
-  try {
-    const { execSync } = await import('child_process')
-    const since = Math.floor(Date.now()/1000 - hoursBack * 3600)
-    // Convert to Apple Epoch (seconds since 2001-01-01)
-    const appleEpoch = since - 978307200
-    const appleNano = appleEpoch * 1000000000
-
-    const sql = `
-SELECT 
-  datetime(m.date/1000000000 + strftime('%s','2001-01-01'), 'unixepoch', 'localtime') as ts,
-  h.id as contact,
-  m.text,
-  m.is_from_me,
-  c.chat_identifier,
-  m.rowid as msg_id
-FROM message m
-JOIN handle h ON m.handle_id = h.rowid
-LEFT JOIN chat_message_join cmj ON cmj.message_id = m.rowid
-LEFT JOIN chat c ON c.rowid = cmj.chat_id
-WHERE m.date > ${appleNano}
-  AND m.text IS NOT NULL
-  AND m.is_from_me = 0
-  AND length(m.text) > 10
-ORDER BY m.date DESC
-LIMIT 200
-`
-    const result = execSync(`sqlite3 ~/Library/Messages/chat.db "${sql.replace(/\n/g,' ')}"`, { encoding: 'utf8', timeout: 10000 })
-    const rows = result.trim().split('\n').filter(Boolean)
-
-    for (const row of rows) {
-      const parts = row.split('|')
-      if (parts.length < 5) continue
-      const [ts, contact, text, , chatId, msgId] = parts
-      if (!text || text.length < 15) continue
-
-      const channelRef = `imessage_${msgId}`
-      const existing = await db.collection('issues').findOne({ channelRef })
-      if (existing) continue
-
-      const classification = await classifyMessage(text, 'iMessage')
-      if (!classification?.isIssue) continue
-
-      await db.collection('issues').insertOne({
-        title: classification.title || text.substring(0, 60),
-        description: text,
-        channel: 'imessage',
-        channelRef,
-        from: contact,
-        fromRaw: contact,
-        product: classification.product || 'unknown',
-        category: classification.category || 'other',
-        severity: classification.severity || 'medium',
-        status: 'open',
-        rawMessage: text,
-        syncedAt: new Date(),
-        createdAt: new Date(ts),
-        updatedAt: new Date(ts),
-      })
-      count++
-    }
-  } catch (e: unknown) {
-    console.error('iMessage sync error:', (e as Error).message)
-  }
-  return count
+// ── iMessage sync ─────────────────────────────────────────────────────────────
+// iMessage lives on local Mac only — data is POSTed here by the macOS LaunchAgent
+// See /scripts/imessage-sync.py for the local script
+async function syncIMessages(_hoursBack = 48): Promise<number> {
+  return 0 // No-op on server — handled by local Mac agent posting to /api/sync-issues/ingest
 }
 
 // ── Gmail sync (ethan@sireapp.io + sireapps.llc) ────────────────────────────
