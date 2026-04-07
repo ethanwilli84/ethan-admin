@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 
 interface Campaign { _id: string; slug: string; name: string; description: string; icon: string; active: boolean }
-interface Stats { total: number; replied: number; responseRate: number; recentWeek: number }
+interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; sentToday: number }
 interface RunStatus { status: string; conclusion: string|null; lines: string[]; runId: number|null }
 interface Generated { name:string;slug:string;description:string;icon:string;researchPrompt:string;template:string;sendTime:string;sendDays:string[];perSession:number;suggestedEndDate:string|null;rationale:string }
 
@@ -143,13 +143,13 @@ export default function Home() {
                 </div>
                 {s&&(
                   <div className="campaign-stats">
-                    <div><div className="campaign-stat-label">Sent</div><div className="campaign-stat-val">{s.total}</div></div>
+                    <div><div className="campaign-stat-label">Total Sent</div><div className="campaign-stat-val">{s.total}</div></div>
+                    <div><div className="campaign-stat-label">Today</div><div className="campaign-stat-val" style={{color: s.sentToday > 0 ? 'var(--green)' : 'var(--text-3)'}}>{s.sentToday ?? 0}</div></div>
                     <div><div className="campaign-stat-label">Replies</div><div className="campaign-stat-val">{s.replied}</div></div>
                     <div><div className="campaign-stat-label">Rate</div><div className="campaign-stat-val">{s.responseRate}%</div></div>
-                    <div><div className="campaign-stat-label">This Week</div><div className="campaign-stat-val">{s.recentWeek}</div></div>
                   </div>
                 )}
-                <CampaignRunBar slug={c.slug} todaySent={s?.recentWeek} />
+                <CampaignRunBar slug={c.slug} todaySent={s?.sentToday} />
               </Link>
             )
           })}
