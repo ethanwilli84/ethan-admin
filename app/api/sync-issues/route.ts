@@ -5,6 +5,8 @@ import { getDb } from '@/lib/mongodb'
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
 const GMAIL_USER = process.env.GMAIL_USER!
 const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD_IMAP!
+const GMAIL_VOICE_USER = process.env.GMAIL_VOICE_USER || 'lanceburton96@gmail.com'
+const GMAIL_VOICE_PASS = process.env.GMAIL_VOICE_PASS || ''
 const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN || ''
 
 // AI classifier — determines if a message is a real issue and extracts metadata
@@ -44,13 +46,17 @@ async function syncIMessages(_hoursBack = 48): Promise<number> {
 
 // ── Gmail sync (ethan@sireapp.io + sireapps.llc) ────────────────────────────
 async function syncGmail(hoursBack = 48): Promise<number> {
+  return syncGmailAccount(GMAIL_USER, GMAIL_PASS, hoursBack, 'email_sire')
+}
+
+async function syncGmailAccount(user: string, pass: string, hoursBack = 48, channel = 'email_sire'): Promise<number> {
   const db = await getDb()
   let count = 0
   try {
     const { ImapFlow } = await import('imapflow')
     const client = new ImapFlow({
       host: 'imap.gmail.com', port: 993, secure: true,
-      auth: { user: GMAIL_USER, pass: GMAIL_PASS }, logger: false,
+      auth: { user, pass }, logger: false,
     })
     await client.connect()
     let lock
@@ -218,7 +224,13 @@ export async function GET(req: NextRequest) {
   const results: Record<string, number> = {}
 
   if (channels.includes('imessage')) results.imessage = await syncIMessages(hours)
-  if (channels.includes('email')) results.email = await syncGmail(hours)
+  if (channels.includes('email')) {
+    results.email = await syncGmail(hours)
+    // Also scan Google Voice forwarding inbox (lanceburton96@gmail.com)
+    if (GMAIL_VOICE_PASS) {
+      results.google_voice = await syncGmailAccount(GMAIL_VOICE_USER, GMAIL_VOICE_PASS, hours, 'google_voice')
+    }
+  }
   if (channels.includes('slack')) results.slack = await syncSlack(hours)
 
   const resolved = await detectResolutions()
