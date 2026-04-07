@@ -47,18 +47,55 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    // Filter to campaign-specific lines if requested
+    // Filter to campaign-specific lines
     let filteredLines = lines
+    let campaignIsRunning = false
+    let campaignCompleted = false
+
+    if (campaign && lines.length > 0) {
+      // Check if this specific campaign appears in the logs
+      const runningMarker = `Running: ${campaign}`
+      const doneMarker = `Done.` // appears after campaign finishes
+
+      const runIdx = lines.findIndex(l => l.includes(runningMarker))
+      if (runIdx >= 0) {
+        // This campaign did run/is running in this job
+        const doneIdx = lines.findIndex((l, i) => i > runIdx && l.includes('Done.'))
+        if (runStatus === 'in_progress') {
+          if (doneIdx > runIdx) {
+            // Campaign finished, but job still running (other campaigns going)
+            campaignCompleted = true
+            filteredLines = lines.slice(runIdx, doneIdx + 1)
+          } else {
+            // Campaign currently running
+            campaignIsRunning = true
+            filteredLines = lines.slice(runIdx)
+          }
+        } else {
+          // Job completed — campaign ran
+          campaignCompleted = true
+          filteredLines = doneIdx > runIdx ? lines.slice(runIdx, doneIdx + 1) : lines.slice(runIdx)
+        }
+      } else if (runStatus === 'in_progress') {
+        // Job running but this campaign hasn't started yet — it's queued
+        campaignIsRunning = false // not yet started
+        filteredLines = []
+      }
+    }
+
+    // Determine effective status for THIS campaign
+    let effectiveStatus = runStatus
     if (campaign) {
-      // Find the section for this campaign
-      const campaignIdx = lines.findIndex(l => l.includes(campaign) || l.includes('Campaign Orchestrator'))
-      if (campaignIdx >= 0) filteredLines = lines.slice(Math.max(0, campaignIdx - 2))
+      if (campaignIsRunning) effectiveStatus = 'in_progress'
+      else if (campaignCompleted) effectiveStatus = 'completed'
+      else if (runStatus === 'in_progress') effectiveStatus = 'queued' // job running but campaign not started yet
+      else effectiveStatus = runStatus
     }
 
     return NextResponse.json({
       ok: true,
-      status: runStatus,
-      conclusion: runConclusion,
+      status: effectiveStatus,
+      conclusion: campaignCompleted ? 'success' : runConclusion,
       runId: activeRun.id,
       jobId: job.id,
       startedAt: createdAt,

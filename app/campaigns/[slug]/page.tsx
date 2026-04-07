@@ -294,6 +294,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               {runStep&&<div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',maxWidth:240,textOverflow:'ellipsis',overflow:'hidden',whiteSpace:'nowrap',textAlign:'right'}}>{runStep}</div>}
             </div>
           )}
+          {!config.paused&&logs.status==='queued'&&(
+            <div style={{display:'flex',alignItems:'center',gap:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',borderRadius:20,padding:'3px 10px'}}>
+              <span style={{width:6,height:6,borderRadius:'50%',background:'#f59e0b',display:'inline-block'}}/>
+              <span style={{fontSize:11,fontFamily:'var(--font-dm-mono)',color:'#f59e0b',fontWeight:600}}>QUEUED — other campaign running first</span>
+            </div>
+          )}
           {logs.status==='completed'&&logs.conclusion&&(
             <div style={{display:'flex',alignItems:'center',gap:6,background:logs.conclusion==='success'?'rgba(0,200,150,0.08)':'rgba(255,71,87,0.08)',border:`1px solid ${logs.conclusion==='success'?'rgba(0,200,150,0.25)':'rgba(255,71,87,0.25)'}`,borderRadius:20,padding:'3px 10px'}}>
               <span style={{fontSize:11,fontFamily:'var(--font-dm-mono)',color:logs.conclusion==='success'?'var(--green)':'var(--red)'}}>
