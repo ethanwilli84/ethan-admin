@@ -517,3 +517,9 @@ td { padding: 13px 16px; color: var(--text); }
   top: 0;
   z-index: 10;
 }
+
+@keyframes shimmer {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}

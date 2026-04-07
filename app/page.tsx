@@ -1,10 +1,84 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 
 interface Campaign { _id: string; slug: string; name: string; description: string; icon: string; active: boolean }
 interface Stats { total: number; replied: number; responseRate: number; recentWeek: number }
+interface RunStatus { status: string; conclusion: string|null; lines: string[]; runId: number|null }
 interface Generated { name:string;slug:string;description:string;icon:string;researchPrompt:string;template:string;sendTime:string;sendDays:string[];perSession:number;suggestedEndDate:string|null;rationale:string }
+
+function CampaignRunBar({ slug }: { slug: string }) {
+  const [run, setRun] = useState<RunStatus|null>(null)
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const d: RunStatus = await fetch(`/api/run-logs?campaign=${slug}`).then(r => r.json())
+      setRun(d)
+    } catch {}
+  }, [slug])
+
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(fetchStatus, 20000) // poll every 20s
+    return () => clearInterval(interval)
+  }, [fetchStatus])
+
+  if (!run || run.status === 'idle') return null
+
+  // Parse progress from log lines
+  const lines = run.lines || []
+  const sentLines = lines.filter(l => l.includes('✓ Sent to') || l.includes('Sent to'))
+  const sent = sentLines.length
+  const batchLine = lines.filter(l => l.includes('Batch ')).pop() || ''
+  const batchMatch = batchLine.match(/Batch (\d+)/)
+  const batchNum = batchMatch ? parseInt(batchMatch[1]) : 0
+  const isDone = run.status === 'completed' || lines.some(l => l.includes('Done.'))
+  const isQueued = run.status === 'queued'
+  const isRunning = run.status === 'in_progress' && !isDone
+
+  // Progress estimate: 5 batches max, each ~20% of the bar
+  const batchPct = batchNum > 0 ? Math.min(batchNum / 5, 1) : 0
+  const sentPct = sent > 0 ? Math.min(sent / 15, 1) * 0.8 : 0
+  const pct = isDone ? 100 : Math.max(batchPct, sentPct) * 100 || (isRunning ? 15 : 0)
+
+  const color = isDone && run.conclusion === 'success' ? 'var(--green)'
+    : isDone && run.conclusion === 'failure' ? 'var(--red)'
+    : isQueued ? '#f59e0b'
+    : 'var(--accent)'
+
+  const label = isDone && run.conclusion === 'success' ? `✓ Done — ${sent} sent`
+    : isDone && run.conclusion === 'failure' ? '✗ Failed'
+    : isQueued ? '⏳ Queued'
+    : isRunning && batchNum > 0 ? `Running · Batch ${batchNum}/5 · ${sent} sent`
+    : isRunning ? `Running · ${sent} sent`
+    : ''
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }} onClick={e => e.preventDefault()}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isRunning && <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', animation: 'pulse 1s infinite' }}/>}
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-dm-mono)', color, fontWeight: 600 }}>{label}</span>
+        </div>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-dm-mono)', color: 'var(--text-3)' }}>{Math.round(pct)}%</span>
+      </div>
+      <div style={{ height: 4, borderRadius: 4, background: 'var(--surface-2)', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 4, background: color,
+          width: `${pct}%`,
+          transition: 'width 1s ease',
+          animation: isRunning && pct < 100 ? 'shimmer 2s infinite' : 'none',
+        }}/>
+      </div>
+      {/* Last log line preview */}
+      {isRunning && lines.length > 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 4, fontFamily: 'var(--font-dm-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {lines[lines.length - 1]?.substring(0, 70)}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Home() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -72,8 +146,10 @@ export default function Home() {
                     <div><div className="campaign-stat-label">Sent</div><div className="campaign-stat-val">{s.total}</div></div>
                     <div><div className="campaign-stat-label">Replies</div><div className="campaign-stat-val">{s.replied}</div></div>
                     <div><div className="campaign-stat-label">Rate</div><div className="campaign-stat-val">{s.responseRate}%</div></div>
+                    <div><div className="campaign-stat-label">This Week</div><div className="campaign-stat-val">{s.recentWeek}</div></div>
                   </div>
                 )}
+                <CampaignRunBar slug={c.slug} />
               </Link>
             )
           })}
