@@ -20,6 +20,7 @@ const NAV = [
       { label: 'Outreach Settings', href: '/settings', icon: '📡' },
       { label: 'System Status', href: '/status', icon: '🟢' },
       { label: 'Issues', href: '/issues', icon: '🔴' },
+      { label: 'Alpine Ops', href: '/alpine-ops', icon: '💳' },
     ]
   },
 ]
