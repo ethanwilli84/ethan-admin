@@ -6,21 +6,38 @@ import { useState } from 'react'
 const NAV = [
   {
     section: 'Outreach',
-    icon: '📡',
-    href: '/',
     items: [
       { label: 'Campaigns', href: '/', icon: '◈' },
+      { label: 'Manual Outreach', href: '/manual-outreach', icon: '📲' },
+    ]
+  },
+  {
+    section: 'Operations',
+    items: [
+      { label: 'Issues', href: '/issues', icon: '🔴' },
+      { label: 'Alpine Ops', href: '/alpine-ops', icon: '💳' },
+      { label: 'Sire Ops', href: '/sire-ops', icon: '📦' },
+      { label: 'System Status', href: '/status', icon: '🟢' },
+    ]
+  },
+  {
+    section: 'Intelligence',
+    items: [
+      { label: 'Conversations', href: '/conversations', icon: '💬' },
+      { label: 'AI Life OS', href: '/life-os', icon: '🧠' },
+      { label: 'Social Queue', href: '/social', icon: '📸' },
+    ]
+  },
+  {
+    section: 'Finance',
+    items: [
+      { label: 'Finance Monitor', href: '/finance', icon: '💰' },
     ]
   },
   {
     section: 'Settings',
-    icon: '⚙',
-    href: '/settings',
     items: [
       { label: 'Outreach Settings', href: '/settings', icon: '📡' },
-      { label: 'System Status', href: '/status', icon: '🟢' },
-      { label: 'Issues', href: '/issues', icon: '🔴' },
-      { label: 'Alpine Ops', href: '/alpine-ops', icon: '💳' },
     ]
   },
 ]
