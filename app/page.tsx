@@ -7,7 +7,7 @@ interface Stats { total: number; replied: number; responseRate: number; recentWe
 interface RunStatus { status: string; conclusion: string|null; lines: string[]; runId: number|null }
 interface Generated { name:string;slug:string;description:string;icon:string;researchPrompt:string;template:string;sendTime:string;sendDays:string[];perSession:number;suggestedEndDate:string|null;rationale:string }
 
-function CampaignRunBar({ slug }: { slug: string }) {
+function CampaignRunBar({ slug, todaySent }: { slug: string; todaySent?: number }) {
   const [run, setRun] = useState<RunStatus|null>(null)
 
   const fetchStatus = useCallback(async () => {
@@ -27,12 +27,12 @@ function CampaignRunBar({ slug }: { slug: string }) {
 
   // Parse progress from log lines
   const lines = run.lines || []
-  const sentLines = lines.filter(l => l.includes('✓ Sent to') || l.includes('Sent to'))
-  const sent = sentLines.length
+  // Use DB-sourced today sent count (more reliable than log parsing)
+  const sent = todaySent ?? lines.filter(l => l.includes('✓ Sent to') || l.includes('Sent to')).length
   const batchLine = lines.filter(l => l.includes('Batch ')).pop() || ''
   const batchMatch = batchLine.match(/Batch (\d+)/)
   const batchNum = batchMatch ? parseInt(batchMatch[1]) : 0
-  const isDone = run.status === 'completed' || lines.some(l => l.includes('Done.'))
+  const isDone = run.status === 'completed' || lines.some(l => l.includes('All campaigns complete') || l.includes('Done.'))
   const isQueued = run.status === 'queued'
   const isRunning = run.status === 'in_progress' && !isDone
 
@@ -46,7 +46,7 @@ function CampaignRunBar({ slug }: { slug: string }) {
     : isQueued ? '#f59e0b'
     : 'var(--accent)'
 
-  const label = isDone && run.conclusion === 'success' ? `✓ Done — ${sent} sent`
+  const label = isDone && run.conclusion === 'success' ? (sent ? `✓ Done — ${sent} sent today` : '✓ Done')
     : isDone && run.conclusion === 'failure' ? '✗ Failed'
     : isQueued ? '⏳ Queued'
     : isRunning && batchNum > 0 ? `Running · Batch ${batchNum}/5 · ${sent} sent`
@@ -149,7 +149,7 @@ export default function Home() {
                     <div><div className="campaign-stat-label">This Week</div><div className="campaign-stat-val">{s.recentWeek}</div></div>
                   </div>
                 )}
-                <CampaignRunBar slug={c.slug} />
+                <CampaignRunBar slug={c.slug} todaySent={s?.recentWeek} />
               </Link>
             )
           })}
