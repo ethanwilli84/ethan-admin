@@ -20,9 +20,11 @@ async function classifyMessage(text: string, source: string): Promise<{
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 300,
-        system: `You classify customer support messages for two businesses:
-- Sire Apps: B2B shipping platform for sneaker resellers (UPS/FedEx labels, inventory)
-- Alpine: BNPL fintech for coaching/education sellers (checkout, Plaid bank connections, payouts, defaults, chargebacks)
+        system: `You classify messages for two businesses. Be LIBERAL — flag anything needing attention.
+- Sire Apps: B2B shipping for sneaker resellers (labels, surcharges, UPS/FedEx, inventory)
+- Alpine: BNPL/financing for coaching & education sellers (merchant payouts, customer checkout, Plaid bank connections, defaults, chargebacks, loan payments)
+
+Flag isIssue=true if: merchant asking about payouts/funds, checkout/payment issues, bank connection problems, complaints, refund requests, anything not working, questions needing a response. When in doubt, flag it.
 
 Respond ONLY with JSON, no other text. No markdown.`,
         messages: [{
@@ -128,14 +130,14 @@ async function syncSlack(hoursBack = 48): Promise<number> {
     for (const channel of channels.slice(0, 40)) {
       try {
         const msgRes = await fetch(
-          `https://slack.com/api/conversations.history?channel=${channel.id}&oldest=${since}&limit=20`,
+          `https://slack.com/api/conversations.history?channel=${channel.id}&oldest=${since}&limit=50`,
           { headers: { 'Authorization': `Bearer ${SLACK_TOKEN}` } }
         )
         const msgData = await msgRes.json()
         const messages = msgData.messages || []
 
         for (const msg of messages) {
-          if (!msg.text || msg.text.length < 20 || msg.bot_id || msg.subtype) continue
+          if (!msg.text || msg.text.length < 8 || msg.bot_id || msg.subtype) continue
           const channelRef = `slack_${channel.id}_${msg.ts}`
           const existing = await db.collection('issues').findOne({ channelRef })
           if (existing) continue
