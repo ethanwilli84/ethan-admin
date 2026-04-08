@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ acquired: true, expiresAt: expiry })
   }
 
+  if (action === 'cleanup') {
+    // Clear all locks older than 3 hours (stale from crashed runs)
+    const staleTime = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    const result = await db.collection('campaign_locks').deleteMany({ acquiredAt: { $lt: staleTime } })
+    return NextResponse.json({ ok: true, cleared: result.deletedCount })
+  }
+
   if (action === 'release') {
     await locks.deleteOne({ campaign })
     return NextResponse.json({ ok: true, released: campaign })
