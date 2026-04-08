@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       { $match: { campaign } },
       { $group: { _id: '$category', count: { $sum: 1 } } }
     ]).toArray(),
-    col.countDocuments({ campaign, date: { $gte: weekAgo } }),
+    col.countDocuments({ campaign, status: 'Sent', date: { $gte: weekAgo } }),  // Sent platforms only
     col.aggregate([
       { $match: { campaign } },
       { $group: { _id: '$status', count: { $sum: 1 } } }

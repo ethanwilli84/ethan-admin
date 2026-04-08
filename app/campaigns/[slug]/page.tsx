@@ -436,7 +436,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
           <div className="fade-up">
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,gap:10,flexWrap:'wrap'}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <span className="page-sub">{records.length} total · {repliedCount} replied</span>
+                <span className="page-sub">{sentCount} platforms reached · {repliedCount} replied · {records.length} total records</span>
                 {checkedIds.size > 0 && (
                   <div style={{display:'flex',alignItems:'center',gap:6}}>
                     <span style={{fontSize:12,color:'var(--accent)',fontFamily:'var(--font-dm-mono)',fontWeight:600}}>{checkedIds.size} selected</span>
