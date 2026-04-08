@@ -244,7 +244,7 @@ export default function Home() {
                 </div>
 
                 <div className="campaign-stats">
-                  <div><div className="campaign-stat-label">Total Sent</div><div className="campaign-stat-val">{c.totalSent}</div></div>
+                  <div><div className="campaign-stat-label">Platforms</div><div className="campaign-stat-val">{c.totalSent}</div></div>
                   <div><div className="campaign-stat-label">Today</div><div className="campaign-stat-val" style={{color:c.sentToday>0?'var(--green)':'var(--text-3)'}}>{c.sentToday}</div></div>
                   <div><div className="campaign-stat-label">Target</div><div className="campaign-stat-val">{c.perSession}</div></div>
                 </div>

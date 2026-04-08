@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, use } from 'react'
 import Link from 'next/link'
 
 interface Campaign { slug: string; name: string; icon: string; githubRepo: string; githubWorkflow: string; active: boolean }
-interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; byCategory: {_id:string;count:number}[]; byStatus: {_id:string;count:number}[] }
+interface Stats { total: number; replied: number; responseRate: number; recentWeek: number; sentToday: number; byCategory: {_id:string;count:number}[]; byStatus: {_id:string;count:number}[] }
 interface Rec { _id: string; date: string; name: string; category: string; website: string; emailsSent: string; status: string; note?: string; aiStatus?: string; aiSummary?: string; aiNextStep?: string; replyPreview?: string }
 interface Config { template: string; researchObjective: string; contactObjective: string; emailSubject: string; senderName: string; senderEmail: string; sendTime: string; sendDays: string[]; endDate: string|null; perSession: number; maxContactsPerPlatform: number; skipLowConfidence: boolean; paused: boolean; useFallbackEmails: boolean; fallbackPrefixes: string[] }
 interface ChatMsg { role: 'user'|'assistant'; content: string }
@@ -270,6 +270,11 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   const statuses = ['All','Sent','Replied','No Contact Found','Send Failed']
   const filtered = records.filter(r=>(filter==='All'||r.status===filter)&&(!search||r.name?.toLowerCase().includes(search.toLowerCase())||r.emailsSent?.toLowerCase().includes(search.toLowerCase())))
   const repliedCount = records.filter(r=>r.status==='Replied').length
+  const sentCount = records.filter(r=>r.status==='Sent').length
+  const totalEmailsSent = records.filter(r=>r.status==='Sent').reduce((acc,r)=>{
+    const emails=(r.emailsSent||'').split(',').filter((e:string)=>e.trim()&&e.includes('@'))
+    return acc+emails.length
+  },0)
   const convertedCount = records.filter(r=>r.aiStatus==='Converted').length
 
   return (
@@ -321,7 +326,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
 
       {stats&&(
         <div style={{background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'10px 32px',display:'flex',gap:32,alignItems:'center'}}>
-          {[['Sent',stats.total],['Replied',repliedCount],['Rate',`${stats.total?Math.round((repliedCount/stats.total)*100):0}%`],['Converted',convertedCount],['This Week',stats.recentWeek]].map(([l,v])=>(
+          {[['Sent',sentCount],['Replied',repliedCount],['Rate',`${sentCount?Math.round((repliedCount/sentCount)*100):0}%`],['Converted',convertedCount],['This Week',stats.recentWeek]].map(([l,v])=>(
             <div key={l as string} style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:11,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',letterSpacing:'0.08em'}}>{l}</span>
               <span style={{fontFamily:'var(--font-syne)',fontSize:18,fontWeight:700}}>{v}</span>
@@ -355,7 +360,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         {tab==='dashboard'&&stats&&(
           <div>
             <div className="card-grid card-grid-4 space-32 fade-up">
-              {[['Total Sent',stats.total,'fade-up-1'],['Replies',repliedCount,'fade-up-2'],['Converted',convertedCount,'fade-up-3'],['This Week',stats.recentWeek,'fade-up-4']].map(([l,v,cls])=>(
+              {[['Platforms Reached',sentCount,'fade-up-1'],['Emails Sent',totalEmailsSent,'fade-up-2'],['Replied',repliedCount,'fade-up-3'],['Reply Rate',`${sentCount?Math.round((repliedCount/sentCount)*100):0}%`,'fade-up-4']].map(([l,v,cls])=>(
                 <div key={l as string} className={`stat-card ${cls}`}>
                   <div className="stat-label">{l}</div>
                   <div className="stat-value">{v}</div>
@@ -367,7 +372,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                 <div className="section-label">By Category</div>
                 {stats.byCategory.length===0&&<div style={{color:'var(--text-3)',fontSize:13}}>No data yet</div>}
                 {stats.byCategory.map((cat,i)=>{
-                    const pct = Math.min(100,(cat.count/(stats.total||1))*100)
+                    const pct = Math.min(100,(cat.count/((records.length)||1))*100)
                     const colors = ['#5B4FE9','#00D4FF','#00C896','#FF6B6B','#FFB347','#A78BFA','#34D399']
                     const color = colors[i % colors.length]
                     const label = cat._id.replace(/_/g,' ').replace(/\w/g, (l:string)=>l.toUpperCase())
