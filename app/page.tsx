@@ -229,7 +229,7 @@ export default function Home() {
                     <div>
                       <div className="campaign-card-name">{c.name}</div>
                       <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',marginTop:1}}>
-                        {c.sendTime} ET · {c.perSession}/run
+                        10:00 AM ET · {c.perSession}/run
                       </div>
                     </div>
                   </div>
