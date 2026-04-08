@@ -23,6 +23,8 @@ const NAV = [
   {
     section: 'Intelligence',
     items: [
+      { label: 'Projects', href: '/projects', icon: '⚡' },
+      { label: 'Content', href: '/content', icon: '🎬' },
       { label: 'Conversations', href: '/conversations', icon: '💬' },
       { label: 'AI Life OS', href: '/life-os', icon: '🧠' },
       { label: 'Social Queue', href: '/social', icon: '📸' },

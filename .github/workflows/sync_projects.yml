@@ -1,0 +1,30 @@
+name: Sync GitHub Projects
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # Daily 10 AM EDT
+  workflow_dispatch:
+  push:
+    branches: [main]      # Also refresh cache on every push
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh projects cache
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.ADMIN_URL }}/api/projects?refresh=1" \
+            --max-time 120)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE"
+          python3 -c "
+          import json
+          try:
+            d = json.loads('''$BODY''')
+            print(f'Projects synced: {len(d.get(\"projects\", []))}')
+            print(f'Repos: {[p[\"name\"] for p in d.get(\"projects\", [])]}')
+          except Exception as e:
+            print(f'Error: {e}')
+          " 2>&1
