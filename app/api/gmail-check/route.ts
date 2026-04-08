@@ -11,11 +11,6 @@ export async function POST(req: NextRequest) {
   if (!email && !domain && !name) return NextResponse.json({ error: 'Need email, domain, or name' }, { status: 400 })
 
   const searchDomain = domain || (email?.includes('@') ? email.split('@')[1] : null)
-  const terms: string[] = []
-  if (email) terms.push(email)
-  if (searchDomain) terms.push(searchDomain)
-  if (name && name.length > 3) terms.push(name)
-
   const sentMatches: { subject: string; to: string; date: string; matchedTerm: string }[] = []
   const receivedMatches: { subject: string; from: string; date: string; matchedTerm: string }[] = []
 
@@ -31,71 +26,95 @@ export async function POST(req: NextRequest) {
       let lock: any
       try {
         lock = await client.getMailboxLock(folderPath)
-        for (const term of terms) {
-          // text: searches full message body + headers — catches manual outreach, contact forms, anything
-          const queries: any[] = isSent
-            ? [{ to: term }, { text: term }]   // sent: did we send TO them or mention them?
-            : [{ from: term }, { text: term }]  // inbox: did they email us or are they mentioned?
 
-          for (const query of queries) {
-            try {
-              const uids: number[] = await client.search(query) as number[]
-              if (!Array.isArray(uids) || !uids.length) continue
+        // FIX: Only use precise address/to/from queries — NO text: search
+        // text: searches full email bodies causing massive false positives
+        // e.g. domain "accel.com" matching unrelated emails that mention accel in body
+        const queries: any[] = []
 
-              for (const uid of uids.slice(-10)) {
-                try {
-                  const msg: any = await client.fetchOne(String(uid), { envelope: true })
-                  if (!msg?.envelope) continue
-
-                  const env = msg.envelope
-                  const subject: string = env.subject || ''
-                  const date: string = env.date?.toISOString?.()?.split('T')[0] || ''
-                  const key = `${subject}|${date}`
-
-                  if (isSent) {
-                    const to: string = (env.to || []).map((t: any) => t.address || '').join(', ')
-                    if (!sentMatches.find(m => `${m.subject}|${m.date}` === key)) {
-                      sentMatches.push({ subject: subject.substring(0, 80), to: to.substring(0, 60), date, matchedTerm: term })
-                    }
-                  } else {
-                    const from: string = (env.from || []).map((f: any) => f.address || '').join(', ')
-                    if (!receivedMatches.find(m => `${m.subject}|${m.date}` === key)) {
-                      receivedMatches.push({ subject: subject.substring(0, 80), from: from.substring(0, 60), date, matchedTerm: term })
-                    }
-                  }
-                } catch {}
-              }
-            } catch {} // unsupported query for this folder — skip
-          }
+        if (isSent) {
+          // For sent mail: did we send TO this specific email or domain?
+          if (email) queries.push({ to: email })
+          // Domain search via 'to' only — much more precise than text:
+          if (searchDomain) queries.push({ to: `@${searchDomain}` })
+        } else {
+          // For inbox: did they email US FROM this domain?
+          if (email) queries.push({ from: email })
+          if (searchDomain) queries.push({ from: `@${searchDomain}` })
         }
-      } catch {} // folder doesn't exist — skip
+
+        for (const query of queries) {
+          try {
+            const uids: number[] = await client.search(query) as number[]
+            if (!Array.isArray(uids) || !uids.length) continue
+
+            for (const uid of uids.slice(-5)) {
+              try {
+                const msg: any = await client.fetchOne(String(uid), { envelope: true })
+                if (!msg?.envelope) continue
+
+                const env = msg.envelope
+                const subject: string = env.subject || ''
+                const date: string = env.date?.toISOString?.()?.split('T')[0] || ''
+                const key = `${subject}|${date}`
+
+                if (isSent) {
+                  const to: string = (env.to || []).map((t: any) => t.address || '').join(', ')
+                  // Extra validation: confirm the matched address actually has the domain
+                  const toAddresses = (env.to || []).map((t: any) => (t.address || '').toLowerCase())
+                  const actualMatch = toAddresses.some((addr: string) =>
+                    (email && addr === email.toLowerCase()) ||
+                    (searchDomain && addr.endsWith(`@${searchDomain.toLowerCase()}`))
+                  )
+                  if (!actualMatch) continue  // False positive — skip
+
+                  if (!sentMatches.find(m => `${m.subject}|${m.date}` === key)) {
+                    const matchedTerm = email && toAddresses.includes(email.toLowerCase()) ? email : `@${searchDomain}`
+                    sentMatches.push({ subject: subject.substring(0, 80), to: to.substring(0, 60), date, matchedTerm })
+                  }
+                } else {
+                  const from: string = (env.from || []).map((f: any) => f.address || '').join(', ')
+                  const fromAddresses = (env.from || []).map((f: any) => (f.address || '').toLowerCase())
+                  const actualMatch = fromAddresses.some((addr: string) =>
+                    (email && addr === email.toLowerCase()) ||
+                    (searchDomain && addr.endsWith(`@${searchDomain.toLowerCase()}`))
+                  )
+                  if (!actualMatch) continue
+
+                  if (!receivedMatches.find(m => `${m.subject}|${m.date}` === key)) {
+                    receivedMatches.push({ subject: subject.substring(0, 80), from: from.substring(0, 60), date, matchedTerm: from })
+                  }
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+      } catch {}
       finally { try { lock?.release() } catch {} }
     }
 
-    // Search sent mail — CRITICAL: did we SEND to them before?
     await searchFolder('[Gmail]/Sent Mail', true)
-    // Fallback sent folder name
     if (sentMatches.length === 0) await searchFolder('Sent Messages', true)
-
-    // Search inbox — did they email us?
+    // Only check inbox for received — used for info only, NOT for skip decision
     await searchFolder('INBOX', false)
 
     await client.logout()
   } catch (e: any) {
+    // FIX: On failure, don't skip — allow the send. Failing safe = missing outreach.
     return NextResponse.json({
       ok: false,
-      shouldSkip: true, // safe default — skip if check fails
+      shouldSkip: false,
       error: e.message,
-      verdict: 'SKIP — could not verify email history (safe default)',
-      summary: { sentCount: 0, receivedCount: 0, searchedTerms: terms },
+      verdict: 'ALLOW — could not verify (defaulting to send)',
+      summary: { sentCount: 0, receivedCount: 0 },
     })
   }
 
+  // FIX: Only skip based on SENT history — we sent to them before
+  // Do NOT skip based on received — newsletters/auto-emails/Elavon notifications are not prior contact
   const hasPriorSent = sentMatches.length > 0
-  // Also skip if they've emailed US — indicates prior relationship (web form, inquiry, etc.)
-  // A lender who sent you 3 auto-notifications means you filled their form already
   const hasPriorReceived = receivedMatches.length > 0
-  const shouldSkip = hasPriorSent || hasPriorReceived
+  const shouldSkip = hasPriorSent  // FIX: was: hasPriorSent || hasPriorReceived
 
   return NextResponse.json({
     ok: true,
@@ -104,16 +123,13 @@ export async function POST(req: NextRequest) {
       sentCount: sentMatches.length,
       receivedCount: receivedMatches.length,
       searchedFor: { email, domain: searchDomain, name },
-      searchedTerms: terms,
     },
     sentHistory: sentMatches.slice(0, 5),
     receivedHistory: receivedMatches.slice(0, 3),
-    verdict: hasPriorSent && hasPriorReceived
-      ? `SKIP — active thread: ${sentMatches.length} sent, ${receivedMatches.length} received`
-      : hasPriorSent
-        ? `SKIP — found ${sentMatches.length} prior sent email(s) (no reply from them)`
-        : hasPriorReceived
-          ? `SKIP — received ${receivedMatches.length} email(s) from them (likely filled their web form or they know you)`
-          : 'CLEAR — no prior email history found',
+    verdict: hasPriorSent
+      ? `SKIP — sent to this domain ${sentMatches.length}x before`
+      : hasPriorReceived
+        ? `ALLOW — they emailed us but we haven't sent to them`
+        : 'ALLOW — no prior sent history',
   })
 }
