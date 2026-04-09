@@ -26,6 +26,7 @@ export default function ContentPage() {
   const [filter, setFilter] = useState<ContentType | 'all'>('all')
   const [search, setSearch] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [analyzing, setAnalyzing] = useState(false)
   const [fileData, setFileData] = useState<{ data: string; name: string; type: string } | null>(null)
 
   useEffect(() => { load() }, [])
@@ -56,6 +57,28 @@ export default function ContentPage() {
   async function handleDelete(id: string) {
     await fetch('/api/content', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     load()
+  }
+
+  async function autoAnalyze(type: ContentType, url: string) {
+    if (!url || type === 'file') return
+    setAnalyzing(true)
+    try {
+      const res = await fetch('/api/content-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, url })
+      })
+      const d = await res.json()
+      if (d.ok) {
+        setForm(p => ({
+          ...p,
+          title: d.title || p.title,
+          description: d.description || p.description,
+          tags: d.tags?.join(', ') || p.tags,
+        }))
+      }
+    } catch {}
+    setAnalyzing(false)
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -220,7 +243,10 @@ export default function ContentPage() {
             ].map(({ label, key, placeholder }) => (
               <div key={key} style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 10, color: 'var(--text-3)', fontFamily: 'var(--font-dm-mono)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{label}</label>
-                <input value={form[key as keyof typeof form]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                <input value={form[key as keyof typeof form]} 
+                  onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+                  onBlur={e => { if (key === 'url' && e.target.value) autoAnalyze(addType, e.target.value) }}
+                  onPaste={e => { if (key === 'url') { const pasted = e.clipboardData.getData('text'); setTimeout(() => autoAnalyze(addType, pasted), 100) } }}
                   placeholder={placeholder}
                   style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }} />
               </div>
