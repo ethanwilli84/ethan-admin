@@ -23,6 +23,7 @@ const NAV = [
   {
     section: 'Intelligence',
     items: [
+      { label: 'Lead Pool', href: '/lead-pool', icon: '🎯' },
       { label: 'Projects', href: '/projects', icon: '⚡' },
       { label: 'Content', href: '/content', icon: '🎬' },
       { label: 'Conversations', href: '/conversations', icon: '💬' },
