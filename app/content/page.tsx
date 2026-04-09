@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 
-type ContentType = 'youtube' | 'gdoc' | 'file' | 'link'
+type ContentType = 'youtube' | 'gdoc' | 'file' | 'link' | 'note'
 interface ContentItem {
   _id: string; type: ContentType; title: string; url: string; description: string; tags: string[]
   videoId?: string; embedUrl?: string; thumbnailUrl?: string; docId?: string
@@ -13,6 +13,7 @@ const TYPE_CONFIG = {
   gdoc: { label: 'Google Doc', icon: '📄', color: '#4285F4' },
   file: { label: 'File Upload', icon: '📎', color: '#5B4FE9' },
   link: { label: 'Link', icon: '🔗', color: '#00C896' },
+  note: { label: 'Apple Note', icon: '📝', color: '#f59e0b' },
 }
 
 export default function ContentPage() {
@@ -95,7 +96,7 @@ export default function ContentPage() {
     (!search || item.title.toLowerCase().includes(search.toLowerCase()) || item.description?.toLowerCase().includes(search.toLowerCase()))
   )
 
-  const counts = { all: items.length, youtube: items.filter(i => i.type === 'youtube').length, gdoc: items.filter(i => i.type === 'gdoc').length, file: items.filter(i => i.type === 'file').length, link: items.filter(i => i.type === 'link').length }
+  const counts = { all: items.length, youtube: items.filter(i => i.type === 'youtube').length, gdoc: items.filter(i => i.type === 'gdoc').length, file: items.filter(i => i.type === 'file').length, link: items.filter(i => i.type === 'link').length, note: items.filter(i => i.type === 'note').length }
 
   return (
     <div>
@@ -114,7 +115,7 @@ export default function ContentPage() {
       <div className="main">
         {/* Filter tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {(['all', 'youtube', 'gdoc', 'file', 'link'] as const).map(f => (
+          {(['all', 'youtube', 'gdoc', 'file', 'link', 'note'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, fontFamily: 'var(--font-dm-mono)', cursor: 'pointer', border: '1px solid var(--border)', background: filter === f ? 'var(--accent)' : 'var(--surface-2)', color: filter === f ? '#fff' : 'var(--text-2)' }}>
               {f === 'all' ? `All (${counts.all})` : `${TYPE_CONFIG[f].icon} ${TYPE_CONFIG[f].label} (${counts[f]})`}
@@ -147,6 +148,11 @@ export default function ContentPage() {
               )}
 
               {/* GDoc icon */}
+              {item.type === 'note' && (
+                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-dm-mono)', lineHeight: 1.5, maxHeight: 60, overflow: 'hidden' }}>
+                  📝 {item.description?.substring(0, 120)}
+                </div>
+              )}
               {item.type === 'gdoc' && (
                 <div style={{ marginBottom: 12, height: 60, background: 'rgba(66,133,244,0.08)', border: '1px solid rgba(66,133,244,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📄</div>
               )}
@@ -199,6 +205,11 @@ export default function ContentPage() {
               </div>
             )}
 
+            {preview.type === 'note' && (
+              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7, maxHeight: 400, overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-dm-mono)' }}>
+                {preview.description}
+              </div>
+            )}
             {preview.type === 'gdoc' && preview.embedUrl && (
               <div style={{ height: 500, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <iframe src={preview.embedUrl} style={{ width: '100%', height: '100%', border: 'none' }} />
