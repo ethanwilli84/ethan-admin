@@ -1,4 +1,23 @@
 export const dynamic = 'force-dynamic'
+
+// Pre-ingest filter — skip obvious non-issues before they hit the DB
+const SKIP_PATTERNS = [
+  'funding inquiry', 're: funding', 'merchant account setup',
+  'linkedin', 'unsubscribe', 'newsletter', 'out of office', 'auto-reply',
+  'invitation to connect', 'your subscription', 'payment confirmation',
+  'order confirmation', 'delivery notification', 'receipt from',
+  'docusign', 'signed by', 'wisco capital', 'smartbiz', 'ondeck',
+  'still interested in business funding', 'great connecting',
+  'hope this finds you', 'following up on our', 'checking in on',
+  're: investment', 'nda sire', 'application approved', 'ai coding agents',
+  'aliexpress', 'returned mail', 'bank statement', 'wire transfer',
+  'you have a new message', 'track your package', 'booking link',
+]
+function shouldSkipIngest(text: string): boolean {
+  const lower = text.toLowerCase()
+  return SKIP_PATTERNS.some(p => lower.includes(p))
+}
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
 
@@ -61,6 +80,7 @@ async function syncGmail(hoursBack = 24): Promise<number> {
           const channelRef = `email_${msgId}`
 
           if (await db.collection('issues').findOne({ channelRef })) continue
+          if (shouldSkipIngest(subject)) continue  // pre-filter obvious non-issues
 
           // Save immediately, classify=pending (AI runs separately)
           await db.collection('issues').insertOne({
@@ -106,6 +126,7 @@ async function syncSlack(hoursBack = 24): Promise<number> {
           if (!msg.text || msg.text.length < 10 || msg.bot_id || msg.subtype) continue
           const channelRef = `slack_${channel.id}_${msg.ts}`
           if (await db.collection('issues').findOne({ channelRef })) continue
+          if (shouldSkipIngest(msg.text)) continue  // pre-filter obvious non-issues
 
           await db.collection('issues').insertOne({
             title: msg.text.substring(0, 80),
