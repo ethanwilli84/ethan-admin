@@ -102,7 +102,7 @@ export default function Home() {
     await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:generated.name,slug:generated.slug,description:generated.description,icon:generated.icon,active:true,githubRepo:'ethanwilli84/influence-outreach',githubWorkflow:'daily_outreach.yml'})})
     await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign:generated.slug,researchObjective:generated.researchPrompt,template:generated.template,sendTime:generated.sendTime,sendDays:generated.sendDays,perSession:generated.perSession,endDate:generated.suggestedEndDate,paused:false})})
     // Auto-discover leads for new campaign from free databases
-    fetch('/api/lead-discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaignSlug:generated.slug,campaignName:generated.name,researchObjective:generated.researchPrompt,perSession:generated.perSession})}).catch(()=>{})
+    fetch('/api/lead-discover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaignSlug:generated.slug,campaignName:generated.name,researchObjective:generated.researchPrompt})}).catch(()=>{})
     setCreated(true); setCreating(false)
     setTimeout(()=>{setShowCreator(false);setCreated(false);setGenerated(null);setObjective('');loadOps()},1500)
   }

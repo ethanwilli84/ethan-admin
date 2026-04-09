@@ -54,7 +54,7 @@ export default function LeadPoolPage() {
     const res = await fetch('/api/lead-discover', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaignSlug: campaignFilter, campaignName: camp?.name || campaignFilter, perSession: 20, force: true })
+      body: JSON.stringify({ campaignSlug: campaignFilter, campaignName: camp?.name || campaignFilter, force: true })
     })
     const d = await res.json()
     setIngestLog(d.log || (d.ok ? ['Done: ' + d.finalCount + ' leads'] : ['Error: ' + d.error]))
