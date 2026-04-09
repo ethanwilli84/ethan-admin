@@ -149,9 +149,7 @@ export default function ContentPage() {
 
               {/* GDoc icon */}
               {item.type === 'note' && (
-                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '10px 12px', fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-dm-mono)', lineHeight: 1.5, maxHeight: 60, overflow: 'hidden' }}>
-                  📝 {item.description?.substring(0, 120)}
-                </div>
+                <div style={{ marginBottom: 12, height: 60, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📝</div>
               )}
               {item.type === 'gdoc' && (
                 <div style={{ marginBottom: 12, height: 60, background: 'rgba(66,133,244,0.08)', border: '1px solid rgba(66,133,244,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📄</div>
@@ -170,8 +168,8 @@ export default function ContentPage() {
                   <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                   {item.description && <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description}</div>}
                 </div>
-                <span style={{ fontSize: 9, background: `${TYPE_CONFIG[item.type]?.color}22`, color: TYPE_CONFIG[item.type]?.color, border: `1px solid ${TYPE_CONFIG[item.type]?.color}44`, borderRadius: 10, padding: '2px 7px', fontFamily: 'var(--font-dm-mono)', flexShrink: 0 }}>
-                  {item.type}
+                <span style={{ fontSize: 9, background: `${TYPE_CONFIG[item.type as keyof typeof TYPE_CONFIG]?.color}22`, color: TYPE_CONFIG[item.type as keyof typeof TYPE_CONFIG]?.color, border: `1px solid ${TYPE_CONFIG[item.type as keyof typeof TYPE_CONFIG]?.color}44`, borderRadius: 10, padding: '2px 7px', fontFamily: 'var(--font-dm-mono)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  {TYPE_CONFIG[item.type as keyof typeof TYPE_CONFIG]?.label || item.type}
                 </span>
               </div>
 
@@ -206,7 +204,7 @@ export default function ContentPage() {
             )}
 
             {preview.type === 'note' && (
-              <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7, maxHeight: 400, overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-dm-mono)' }}>
+              <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: 20, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.8, maxHeight: 400, overflowY: 'auto' }}>
                 {preview.description}
               </div>
             )}
