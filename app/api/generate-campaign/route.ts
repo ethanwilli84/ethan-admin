@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: `You generate outreach campaign configurations for Ethan Williams (20yo NYC founder, $5M/yr software company, Alpine BNPL fintech, Taco Project social community). Return ONLY valid JSON, no other text.`,
       messages: [{

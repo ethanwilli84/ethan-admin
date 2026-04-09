@@ -128,7 +128,7 @@ async function generateSummary(repo: Record<string, unknown>, readme: string): P
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 120,
         messages: [{ role: 'user', content: `2-3 sentence summary of this GitHub repo for a personal admin dashboard. What does it do, why does it exist, what problem does it solve?\nRepo: ${repo.name}\nLanguage: ${repo.language}\nDescription: ${repo.description || 'none'}\nREADME: ${readme.substring(0, 600)}\nReturn only the summary.` }]
       })
     })

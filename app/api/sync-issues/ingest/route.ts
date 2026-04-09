@@ -37,7 +37,7 @@ async function classifyWithAI(text: string, source: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 120,
         system: 'Classify support messages for Sire Apps (shipping) and Alpine (BNPL). Reply ONLY with JSON, no markdown.',
         messages: [{ role: 'user', content: `Source: ${source}\nMessage: ${text.substring(0, 600)}\n\nReply with ONLY: {"isIssue":true/false,"title":"short title","product":"sire|alpine|both|unknown","category":"checkout|payout|label|plaid|chargeback|account|shipping|default|login|bug|other","severity":"critical|high|medium|low"}` }]
       })

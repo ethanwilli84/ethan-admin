@@ -16,7 +16,7 @@ async function analyzeYouTube(url: string) {
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 120,
       messages: [{ role: 'user', content: `Write a 1-2 sentence description for this YouTube video.\nTitle: "${title}"\nChannel: "${author}"\nReturn only the description, no quotes.` }]
     })
   })
@@ -68,7 +68,7 @@ async function analyzeLink(url: string) {
     const metaDesc = descMatch?.[1]?.trim() || ''
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 150,
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 100,
         messages: [{ role: 'user', content: `1-2 sentence description for this link. Return only description.\nTitle: ${title}\nURL: ${url}\nMeta: ${metaDesc}` }]
       })
     })

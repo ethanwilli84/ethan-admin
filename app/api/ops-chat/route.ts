@@ -45,7 +45,7 @@ Answer Ethan's questions about what's happening with his outreach campaigns. Be 
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
+      max_tokens: 600,
       system: systemPrompt,
       messages,
     })

@@ -2,6 +2,11 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 
+// In-memory domain cache — cleared on server restart (DO restarts once/day)
+// Prevents re-scanning Gmail for same domains within a 24h period
+const domainCache = new Map<string, { result: Record<string, unknown>; cachedAt: number }>()
+const CACHE_TTL = 23 * 60 * 60 * 1000  // 23 hours
+
 export async function POST(req: NextRequest) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD_IMAP
@@ -11,6 +16,11 @@ export async function POST(req: NextRequest) {
   if (!email && !domain && !name) return NextResponse.json({ error: 'Need email, domain, or name' }, { status: 400 })
 
   const searchDomain = domain || (email?.includes('@') ? email.split('@')[1] : null)
+  const cacheKey = searchDomain || email || 'unknown'
+  const cached = domainCache.get(cacheKey)
+  if (cached && (Date.now() - cached.cachedAt) < CACHE_TTL) {
+    return NextResponse.json({ ...cached.result, fromCache: true })
+  }
   const sentMatches: { subject: string; to: string; date: string; matchedTerm: string }[] = []
   const receivedMatches: { subject: string; from: string; date: string; matchedTerm: string }[] = []
 
@@ -116,20 +126,13 @@ export async function POST(req: NextRequest) {
   const hasPriorReceived = receivedMatches.length > 0
   const shouldSkip = hasPriorSent  // FIX: was: hasPriorSent || hasPriorReceived
 
-  return NextResponse.json({
-    ok: true,
-    shouldSkip,
-    summary: {
-      sentCount: sentMatches.length,
-      receivedCount: receivedMatches.length,
-      searchedFor: { email, domain: searchDomain, name },
-    },
-    sentHistory: sentMatches.slice(0, 5),
-    receivedHistory: receivedMatches.slice(0, 3),
-    verdict: hasPriorSent
-      ? `SKIP — sent to this domain ${sentMatches.length}x before`
-      : hasPriorReceived
-        ? `ALLOW — they emailed us but we haven't sent to them`
-        : 'ALLOW — no prior sent history',
-  })
+  const result = {
+    ok: true, shouldSkip,
+    summary: { sentCount: sentMatches.length, receivedCount: receivedMatches.length, searchedFor: { email, domain: searchDomain, name } },
+    sentHistory: sentMatches.slice(0, 5), receivedHistory: receivedMatches.slice(0, 3),
+    verdict: hasPriorSent ? ('SKIP — sent to this domain ' + sentMatches.length + 'x before') : hasPriorReceived ? 'ALLOW — they emailed us but we have not sent to them' : 'ALLOW — no prior sent history',
+  }
+  // Cache by domain to skip re-checking same domains in same run
+  if (cacheKey) domainCache.set(cacheKey, { result, cachedAt: Date.now() })
+  return NextResponse.json(result)
 }

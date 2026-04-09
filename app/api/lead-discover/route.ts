@@ -10,7 +10,7 @@ async function aiDetermineStrategy(campaign: CampaignMeta) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 600,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 400,
       messages: [{ role: 'user', content: `Analyze this outreach campaign and determine which free lead databases to use.
 
 Campaign: "${campaign.name}"
