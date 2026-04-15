@@ -1,29 +1,27 @@
-name: Social Cleanup
+name: Social Archive Old Records
 
 on:
   schedule:
-    - cron: '0 6 1 * *'  # 1st of every month at 6 AM UTC
+    - cron: '0 6 1 * *'  # 1st of every month
   workflow_dispatch:
 
 jobs:
-  cleanup:
+  archive:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete DO Spaces files older than 30 days
+      - name: Archive old posted queue records (files kept for cycle reuse)
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          RESPONSE=$(curl -s -X POST \
             "${{ secrets.ADMIN_URL }}/api/social/cleanup" \
             -H "Content-Type: application/json" \
-            --max-time 60)
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -1)
-          echo "HTTP: $HTTP_CODE"
+            --max-time 30)
+          echo "$RESPONSE"
           python3 -c "
-          import json
+          import json,sys
           try:
-            d = json.loads('''$BODY''')
-            print(f'Deleted: {d.get(\"deleted\",0)} files')
-            print(f'Items cleaned: {d.get(\"items\",0)}')
-            if d.get('errors'): print(f'Errors: {d[\"errors\"]}')
-          except Exception as e: print(f'Error: {e}')
+            d = json.loads('$RESPONSE')
+            print(f'Archived {d.get(\"archived\",0)} old queue records')
+            print(f'Note: {d.get(\"note\",\"\")}')
+            print('Files in DO Spaces untouched — kept for cycle reuse')
+          except: print('Parse error:', '$RESPONSE'[:200])
           "
