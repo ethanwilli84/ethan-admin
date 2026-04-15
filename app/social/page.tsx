@@ -395,8 +395,8 @@ export default function SocialPage() {
                   <button onClick={async()=>{if(!confirm(`Delete ${a.name}?`))return;await fetch('/api/social/accounts',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id})});loadAll()}} style={{fontSize:11,color:'#ef4444',background:'none',border:'1px solid rgba(239,68,68,0.3)',borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Delete</button>
                 </div>
                 <div style={{marginTop:10,fontSize:11,color:'var(--text-3)'}}>
-                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>🎬 {a.reelsUrl}</div>
-                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:3}}>📸 {a.storiesUrl}</div>
+                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>🎬 </span><span>{a.reelsUrl}</span></div>
+                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:3}}>📸 </span><span>{a.storiesUrl}</span></div>
                 </div>
               </div>
             ))}
