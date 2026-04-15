@@ -1,0 +1,35 @@
+name: Social Auto-Schedule
+
+on:
+  schedule:
+    - cron: '0 12 */14 * *'  # Every 14 days at 12:00 UTC (8 AM EDT)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-schedule even if recently run'
+        default: 'false'
+
+jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Schedule next 30 days of reels and stories
+        run: |
+          FORCE="${{ github.event.inputs.force || 'false' }}"
+          BASE="${{ secrets.ADMIN_URL }}"
+
+          echo "=== Scheduling Sire Ship Reels ==="
+          curl -s -X POST "$BASE/api/social/schedule" \
+            -H "Content-Type: application/json" \
+            -d "{\"accountId\":\"sire-ship\",\"contentType\":\"reel\",\"reelTime\":\"20:00\",\"force\":$FORCE}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Reels: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}'); [print(f'  {k}: {v}') for k,v in d.items() if k not in ('ok','message')]"
+
+          echo ""
+          echo "=== Scheduling Sire Ship Stories ==="
+          curl -s -X POST "$BASE/api/social/schedule" \
+            -H "Content-Type: application/json" \
+            -d "{\"accountId\":\"sire-ship\",\"contentType\":\"story\",\"storyTime\":\"09:00\",\"force\":$FORCE}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Stories: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}'); [print(f'  {k}: {v}') for k,v in d.items() if k not in ('ok','message')]"
+
+          echo ""
+          echo "=== Done ==="

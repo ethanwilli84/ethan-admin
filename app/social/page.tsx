@@ -1,264 +1,326 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-interface IGAccount { id:string; name:string; assetId:string; igHandle?:string; active:boolean }
-interface QItem { _id:string; title:string; caption:string; videoUrl:string; type:'reel'|'story'|'post'
-  scheduledDate:string; status:string; order:number; batchId:string; accountId:string
-  batchNumber?:number; postedAt?:string; errorMsg?:string }
-interface BotLog { _id:string; type:string; accountId?:string; startedAt:string; finishedAt?:string
-  durationMs?:number; status:string; itemsPosted:number; itemsFailed:number; itemsAttempted:number
-  details:{file:string;ok:boolean;error?:string;scheduledFor?:string}[]; errorMsg?:string }
+interface IGAccount { id:string; name:string; assetId:string; igHandle?:string; active:boolean; reelsUrl?:string; storiesUrl?:string }
+interface Variation { variationNum:number; url:string; title:string; uploadedAt:string }
+interface Template { _id:string; accountId:string; contentType:string; name:string; caption:string; order:number; variations:Variation[]; variationCount:number }
+interface QItem { _id:string; title:string; caption:string; videoUrl:string; type:string; scheduledDate:string; status:string; order:number; batchId:string; accountId:string; batchNumber?:number; cycleNum?:number; templateName?:string; variationNum?:number; postedAt?:string; errorMsg?:string }
+interface BotLog { _id:string; type:string; accountId?:string; startedAt:string; finishedAt?:string; durationMs?:number; status:string; itemsPosted:number; itemsFailed:number; itemsAttempted:number; details:{file:string;ok:boolean;error?:string;scheduledFor?:string}[] }
 
 const CONTENT_TYPES = [
-  { id:'reel', label:'Reels', icon:'🎬', accept:'video/*', desc:'MP4/MOV video' },
-  { id:'story', label:'Stories', icon:'📸', accept:'video/*,image/*', desc:'JPG/PNG/MP4' },
-  { id:'post', label:'Grid Posts', icon:'🖼', accept:'video/*,image/*', desc:'JPG/PNG/MP4' },
+  { id:'reel', label:'Reels', icon:'🎬', accept:'video/*', days:'Mon · Wed · Thu · Sun', desc:'4 days/week — restarts after 80 posts' },
+  { id:'story', label:'Stories', icon:'📸', accept:'video/*,image/*', days:'Every day', desc:'Daily — restarts after 80 days' },
 ]
-const STATUS_COLOR:Record<string,string> = { scheduled:'#5B4FE9', posted:'#00C896', failed:'#ef4444', skipped:'#666', running:'#f59e0b', success:'#00C896', partial:'#f59e0b' }
-
-// Build schedule: batches every 14 days, starting from next occurrence, for 30 days
-function buildBatchSchedule(reels:File[], stories:File[], posts:File[], timeStr:string): {reel?:Date,story?:Date,post?:Date,batchNum:number}[] {
-  const [h,m] = timeStr.split(':').map(Number)
-  const batches:any[] = []
-  const maxBatches = Math.max(reels.length, stories.length, posts.length)
-  let base = new Date(); base.setHours(h,m,0,0)
-  // Start from tomorrow + 1 day buffer
-  base.setDate(base.getDate() + 1)
-  for (let i = 0; i < maxBatches; i++) {
-    const d = new Date(base); d.setDate(base.getDate() + i * 14)
-    batches.push({
-      reel: reels[i] ? new Date(d) : undefined,
-      story: stories[i] ? new Date(d.getTime() + 30*60000) : undefined, // +30min after reel
-      post: posts[i] ? new Date(d.getTime() + 60*60000) : undefined,   // +60min after reel
-      batchNum: i + 1,
-    })
-  }
-  return batches
-}
+const STATUS_COLOR:Record<string,string> = { scheduled:'#5B4FE9', posted:'#00C896', failed:'#ef4444', running:'#f59e0b', success:'#00C896', partial:'#f59e0b' }
+const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 export default function SocialPage() {
-  const [tab, setTab] = useState<'upload'|'queue'|'logs'|'accounts'>('upload')
+  const [tab, setTab] = useState<'templates'|'queue'|'logs'|'accounts'>('templates')
   const [accounts, setAccounts] = useState<IGAccount[]>([])
-  const [selectedAccount, setSelectedAccount] = useState<string>('')
-  const [postTime, setPostTime] = useState('16:00')
-  const [reelFiles, setReelFiles] = useState<File[]>([])
-  const [storyFiles, setStoryFiles] = useState<File[]>([])
-  const [postFiles, setPostFiles] = useState<File[]>([])
-  const [caption, setCaption] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({current:0,total:0,file:''})
-  const [uploadDone, setUploadDone] = useState(false)
+  const [selectedAccount, setSelectedAccount] = useState('')
+  const [contentType, setContentType] = useState<'reel'|'story'>('reel')
+  const [templates, setTemplates] = useState<Template[]>([])
   const [queue, setQueue] = useState<QItem[]>([])
   const [logs, setLogs] = useState<BotLog[]>([])
+  const [scheduleState, setScheduleState] = useState<Record<string,unknown>[]>([])
   const [qFilter, setQFilter] = useState<'all'|'scheduled'|'posted'|'failed'>('all')
-  const [qAccountFilter, setQAccountFilter] = useState('')
+
+  // New template form
+  const [addingTemplate, setAddingTemplate] = useState(false)
+  const [newTplName, setNewTplName] = useState('')
+  const [newTplCaption, setNewTplCaption] = useState('')
+  const [newTplFiles, setNewTplFiles] = useState<File[]>([])
+  const [newTplOrder, setNewTplOrder] = useState(1)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({current:0,total:0,file:''})
+
+  // Schedule
+  const [scheduling, setScheduling] = useState(false)
+  const [scheduleResult, setScheduleResult] = useState<Record<string,unknown>|null>(null)
+  const [reelTime, setReelTime] = useState('20:00')
+  const [storyTime, setStoryTime] = useState('09:00')
+
+  // Accounts
   const [addAccountForm, setAddAccountForm] = useState({name:'',assetId:'',igHandle:''})
   const [addingAccount, setAddingAccount] = useState(false)
-  const reelRef = useRef<HTMLInputElement>(null)
-  const storyRef = useRef<HTMLInputElement>(null)
-  const postRef = useRef<HTMLInputElement>(null)
+
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const loadAll = useCallback(async () => {
     const [acctRes, qRes, logRes] = await Promise.all([
       fetch('/api/social/accounts').then(r=>r.json()),
       fetch('/api/social/queue').then(r=>r.json()),
-      fetch('/api/social/logs?limit=50').then(r=>r.json()),
+      fetch('/api/social/logs?limit=40').then(r=>r.json()),
     ])
-    if (acctRes.ok) { setAccounts(acctRes.accounts); if (!selectedAccount && acctRes.accounts[0]) setSelectedAccount(acctRes.accounts[0].id) }
+    if (acctRes.ok) {
+      setAccounts(acctRes.accounts)
+      if (!selectedAccount && acctRes.accounts[0]) setSelectedAccount(acctRes.accounts[0].id)
+    }
     if (qRes.ok) setQueue(qRes.items)
     if (logRes.ok) setLogs(logRes.logs)
-  }, [])
+  }, [selectedAccount])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  const loadTemplates = useCallback(async () => {
+    if (!selectedAccount) return
+    const r = await fetch(`/api/social/templates?accountId=${selectedAccount}&contentType=${contentType}`)
+    const d = await r.json()
+    if (d.ok) setTemplates(d.templates.sort((a:Template,b:Template) => a.order - b.order))
+    const sr = await fetch(`/api/social/schedule?accountId=${selectedAccount}&contentType=${contentType}`)
+    const sd = await sr.json()
+    if (sd.ok) setScheduleState(sd.states)
+  }, [selectedAccount, contentType])
 
-  const schedule = buildBatchSchedule(reelFiles, storyFiles, postFiles, postTime)
-  const totalFiles = reelFiles.length + storyFiles.length + postFiles.length
-  const account = accounts.find(a=>a.id===selectedAccount)
+  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadTemplates() }, [loadTemplates])
 
-  async function uploadBatch() {
-    if (!totalFiles || !selectedAccount) return
-    setUploading(true); setUploadDone(false)
-    const batchId = `batch_${Date.now()}`
-    const allItems:any[] = []
-    let total = 0, current = 0
+  // Upload new template + all its variations
+  async function saveTemplate() {
+    if (!newTplName || !newTplFiles.length || !selectedAccount) return
+    setSavingTemplate(true)
 
-    // Count total for progress
-    for (const type of ['reel','story','post']) {
-      const files = type==='reel'?reelFiles:type==='story'?storyFiles:postFiles
-      total += files.length
+    // 1. Create the template record
+    const tmplRes = await fetch('/api/social/templates', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ accountId:selectedAccount, contentType, name:newTplName, caption:newTplCaption, order:newTplOrder })
+    })
+    const tmplData = await tmplRes.json()
+    const templateId = tmplData.id
+
+    // 2. Upload each variation file to DO Spaces, add to template
+    for (let i = 0; i < newTplFiles.length; i++) {
+      const file = newTplFiles[i]
+      setUploadProgress({current:i+1, total:newTplFiles.length, file:file.name})
+      try {
+        const sigRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&type=${file.type}`)
+        const sig = await sigRes.json()
+        if (!sig.ok) throw new Error(sig.error || 'Upload failed — is DO Spaces configured?')
+        await fetch(sig.presignedUrl, {method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
+        await fetch('/api/social/templates', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ variation: { templateId, variationNum:i+1, url:sig.publicUrl, title:`V${i+1}` } })
+        })
+      } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setSavingTemplate(false); return }
     }
-    setUploadProgress({current:0, total, file:''})
 
-    for (const [typeKey, files, schedKey] of [['reel',reelFiles,'reel'],['story',storyFiles,'story'],['post',postFiles,'post']] as const) {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        current++
-        setUploadProgress({current, total, file:file.name})
-        try {
-          const sigRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&type=${file.type}`)
-          const sig = await sigRes.json()
-          if (!sig.ok) throw new Error(sig.error || 'Upload failed — check DO_SPACES env vars are set')
-          await fetch(sig.presignedUrl, {method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
-          const batchSchedule = schedule[i]
-          allItems.push({
-            title: file.name.replace(/\.[^.]+$/,''), caption,
-            videoUrl: sig.publicUrl, platform:'instagram', type:typeKey,
-            scheduledDate: (batchSchedule?.[schedKey as 'reel'|'story'|'post'] || new Date()).toISOString(),
-            status:'scheduled', order:i+1, batchId, accountId:selectedAccount, batchNumber:i+1,
-          })
-        } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setUploading(false); return }
+    setSavingTemplate(false)
+    setAddingTemplate(false)
+    setNewTplName(''); setNewTplCaption(''); setNewTplFiles([]); setNewTplOrder(templates.length+1)
+    loadTemplates()
+  }
+
+  async function runSchedule(force = false) {
+    setScheduling(true); setScheduleResult(null)
+    const timeKey = contentType === 'reel' ? reelTime : storyTime
+    const body = { accountId:selectedAccount, contentType, reelTime, storyTime, force }
+    const r = await fetch('/api/social/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    const d = await r.json()
+    setScheduleResult(d)
+    setScheduling(false)
+    loadTemplates(); loadAll()
+  }
+
+  async function deleteTemplate(id:string) {
+    if (!confirm('Delete this template and all its variations?')) return
+    await fetch('/api/social/templates',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})})
+    loadTemplates()
+  }
+
+  const filteredQueue = queue.filter(i => (qFilter==='all'||i.status===qFilter) && i.accountId===selectedAccount)
+  const qStats = { scheduled:filteredQueue.filter(i=>i.status==='scheduled').length, posted:filteredQueue.filter(i=>i.status==='posted').length, failed:filteredQueue.filter(i=>i.status==='failed').length }
+  const state = scheduleState.find(s => (s as Record<string,string>).contentType === contentType)
+  const lastLog = logs[0]
+  const accountName = accounts.find(a=>a.id===selectedAccount)?.name || ''
+
+  // Preview the interleaved order
+  const interleavePreview = (() => {
+    if (!templates.length) return []
+    const maxVars = Math.max(...templates.map(t=>t.variationCount))
+    const preview:string[] = []
+    for (let v = 0; v < Math.min(maxVars, 4); v++) {
+      for (const t of templates) {
+        if (v < t.variationCount) preview.push(`${t.name}·V${v+1}`)
       }
     }
-
-    await fetch('/api/social/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:allItems})})
-    setUploading(false); setUploadDone(true)
-    setReelFiles([]); setStoryFiles([]); setPostFiles([]); setCaption('')
-    loadAll()
-    setTimeout(()=>{setUploadDone(false);setTab('queue')},1500)
-  }
-
-  async function addAccount() {
-    setAddingAccount(true)
-    await fetch('/api/social/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(addAccountForm)})
-    setAddAccountForm({name:'',assetId:'',igHandle:''}); setAddingAccount(false)
-    loadAll()
-  }
-
-  const filteredQueue = queue.filter(i => (qFilter==='all'||i.status===qFilter) && (!qAccountFilter||i.accountId===qAccountFilter))
-  const qStats = { scheduled:queue.filter(i=>i.status==='scheduled').length, posted:queue.filter(i=>i.status==='posted').length, failed:queue.filter(i=>i.status==='failed').length }
-
-  // Group queue by account+batch
-  const grouped = filteredQueue.reduce((acc,item) => {
-    const key = `${item.accountId}_${item.batchId}`
-    if (!acc[key]) acc[key]=[]
-    acc[key].push(item); return acc
-  }, {} as Record<string,QItem[]>)
-
-  const FileDropZone = ({type,files,setFiles,inputRef}:{type:'reel'|'story'|'post',files:File[],setFiles:any,inputRef:any}) => {
-    const cfg = CONTENT_TYPES.find(c=>c.id===type)!
-    return (
-      <div>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-          <label style={{fontSize:12,fontWeight:600}}>{cfg.icon} {cfg.label} <span style={{color:'var(--text-3)',fontWeight:400,fontSize:11}}>({cfg.desc})</span></label>
-          {files.length>0&&<button onClick={()=>setFiles([])} style={{fontSize:11,color:'var(--text-3)',background:'none',border:'none',cursor:'pointer'}}>Clear {files.length}</button>}
-        </div>
-        <div onDrop={e=>{e.preventDefault();setFiles((p:File[])=>[...p,...Array.from(e.dataTransfer.files)])}}
-          onDragOver={e=>e.preventDefault()} onClick={()=>inputRef.current?.click()}
-          style={{border:'2px dashed var(--border)',borderRadius:10,padding:'16px 14px',cursor:'pointer',minHeight:52,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',transition:'border-color 0.15s'}}>
-          <input ref={inputRef} type="file" accept={cfg.accept} multiple style={{display:'none'}} onChange={e=>setFiles((p:File[])=>[...p,...Array.from(e.target.files||[])])}/>
-          {files.length===0 ? <span style={{fontSize:12,color:'var(--text-3)'}}>Drop {cfg.label.toLowerCase()} or click to browse</span>
-            : files.map((f,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:5,background:'var(--surface-2)',borderRadius:6,padding:'3px 8px',fontSize:11}}>
-                <span style={{maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
-                <button onClick={e=>{e.stopPropagation();setFiles((p:File[])=>p.filter((_:File,j:number)=>j!==i))}} style={{fontSize:13,color:'var(--text-3)',background:'none',border:'none',cursor:'pointer',lineHeight:1}}>×</button>
-              </div>
-            ))}
-        </div>
-      </div>
-    )
-  }
+    return preview
+  })()
 
   return (
     <div>
       <div className="page-header-bar">
         <div>
           <div className="page-title">Social Queue</div>
-          <div className="page-sub">{qStats.scheduled} scheduled · {qStats.posted} posted · {accounts.length} account{accounts.length!==1?'s':''}</div>
+          <div className="page-sub">
+            {queue.filter(i=>i.status==='scheduled').length} scheduled · {accounts.length} account{accounts.length!==1?'s':''}
+            {lastLog && <span style={{marginLeft:8}}>· Last run: <span style={{color:STATUS_COLOR[lastLog.status]||'var(--text-3)'}}>{lastLog.status}</span> {new Date(lastLog.startedAt).toLocaleDateString()}</span>}
+          </div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          {(['upload','queue','logs','accounts'] as const).map(t=>(
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          {(['templates','queue','logs','accounts'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:tab===t?'var(--accent)':'var(--surface-2)',color:tab===t?'#fff':'var(--text-2)'}}>
-              {t==='upload'?'⬆ Upload':t==='queue'?`📅 Queue (${queue.length})`:t==='logs'?'🤖 Logs':'⚙ Accounts'}
+              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queue.filter(i=>i.accountId===selectedAccount).length})`:t==='logs'?'🤖 Logs':'⚙ Accounts'}
             </button>
           ))}
         </div>
       </div>
 
       <div className="main">
+        {/* Account + type selector bar (shown on templates + queue tabs) */}
+        {(tab==='templates'||tab==='queue') && accounts.length>0 && (
+          <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+            {accounts.map(a=>(
+              <button key={a.id} onClick={()=>setSelectedAccount(a.id)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:`2px solid ${selectedAccount===a.id?'var(--accent)':'var(--border)'}`,background:selectedAccount===a.id?'rgba(91,79,233,0.08)':'var(--surface-2)',color:selectedAccount===a.id?'var(--accent)':'var(--text-2)',fontWeight:selectedAccount===a.id?700:400}}>
+                {a.name} {a.igHandle&&<span style={{fontWeight:400,fontSize:11,color:'var(--text-3)'}}>{a.igHandle}</span>}
+              </button>
+            ))}
+            {tab==='templates' && (
+              <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+                {CONTENT_TYPES.map(ct=>(
+                  <button key={ct.id} onClick={()=>setContentType(ct.id as 'reel'|'story')} style={{padding:'5px 12px',borderRadius:10,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:contentType===ct.id?'var(--accent)':'var(--surface-2)',color:contentType===ct.id?'#fff':'var(--text-2)'}}>
+                    {ct.icon} {ct.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* ── UPLOAD ── */}
-        {tab==='upload'&&(
-          <div style={{maxWidth:700}}>
-            {accounts.length===0?(
+        {/* ── TEMPLATES ── */}
+        {tab==='templates' && (
+          <div style={{maxWidth:780}}>
+            {accounts.length===0 ? (
               <div className="card" style={{textAlign:'center',padding:32}}>
                 <div style={{fontSize:32,marginBottom:8}}>📱</div>
-                <div style={{fontWeight:600,marginBottom:4}}>No accounts yet</div>
-                <div style={{fontSize:12,color:'var(--text-3)',marginBottom:16}}>Add your Instagram accounts first</div>
+                <div style={{fontWeight:600,marginBottom:12}}>Add an Instagram account first</div>
                 <button className="btn-primary" onClick={()=>setTab('accounts')}>Add Account →</button>
               </div>
-            ):(
+            ) : (
               <>
-                {/* Account + Time */}
-                <div className="card" style={{marginBottom:14}}>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 160px',gap:12,marginBottom:14}}>
-                    <div>
-                      <label style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',display:'block',marginBottom:6}}>Post to account</label>
-                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                        {accounts.filter(a=>a.active).map(a=>(
-                          <button key={a.id} onClick={()=>setSelectedAccount(a.id)}
-                            style={{padding:'7px 14px',borderRadius:10,fontSize:13,cursor:'pointer',border:`2px solid ${selectedAccount===a.id?'var(--accent)':'var(--border)'}`,background:selectedAccount===a.id?'rgba(91,79,233,0.08)':'var(--surface)',fontWeight:selectedAccount===a.id?700:400,color:selectedAccount===a.id?'var(--accent)':'var(--text-2)'}}>
-                            {a.name} {a.igHandle&&<span style={{fontSize:11,fontWeight:400,color:'var(--text-3)'}}>{a.igHandle}</span>}
-                          </button>
-                        ))}
+                {/* Schedule info + run button */}
+                {templates.length > 0 && (
+                  <div className="card" style={{marginBottom:16}}>
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:600,fontSize:13,marginBottom:6}}>
+                          {CONTENT_TYPES.find(c=>c.id===contentType)?.icon} {accountName} — {CONTENT_TYPES.find(c=>c.id===contentType)?.label}
+                        </div>
+                        <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8}}>
+                          {templates.length} templates · {templates.reduce((s,t)=>s+t.variationCount,0)} total variations
+                          · posts {CONTENT_TYPES.find(c=>c.id===contentType)?.days}
+                        </div>
+                        {/* Interleave order preview */}
+                        {interleavePreview.length>0 && (
+                          <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>
+                            Order: {interleavePreview.join(' → ')}{interleavePreview.length<templates.reduce((s,t)=>s+t.variationCount,0)*templates.length?` → ... (${templates.reduce((s,t)=>s+t.variationCount,0)*templates.length} total, then restarts)`:''}
+                          </div>
+                        )}
+                        {state && (
+                          <div style={{fontSize:11,color:'var(--text-3)',marginTop:6}}>
+                            Cycle {(state as Record<string,number>).cycleNum} · Position {(state as Record<string,number>).nextItemIndex}/{templates.reduce((s,t)=>s+t.variationCount,0)*templates.length} · Last scheduled: {(state as Record<string,string>).lastScheduledDate}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
+                        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                          <span style={{fontSize:11,color:'var(--text-3)'}}>Time:</span>
+                          <input type="time" value={contentType==='reel'?reelTime:storyTime}
+                            onChange={e=>contentType==='reel'?setReelTime(e.target.value):setStoryTime(e.target.value)}
+                            style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:6,padding:'4px 8px',fontSize:12,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)',width:90}}/>
+                        </div>
+                        <button className="btn-primary" onClick={()=>runSchedule(false)} disabled={scheduling} style={{fontSize:12,padding:'7px 16px'}}>
+                          {scheduling?'◌ Scheduling...':'Schedule next 30 days →'}
+                        </button>
+                        <button onClick={()=>runSchedule(true)} disabled={scheduling} style={{fontSize:11,color:'var(--text-3)',background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>Force re-run</button>
                       </div>
                     </div>
-                    <div>
-                      <label style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',display:'block',marginBottom:6}}>Post time</label>
-                      <input type="time" value={postTime} onChange={e=>setPostTime(e.target.value)}
-                        style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:14,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)',width:'100%',boxSizing:'border-box'}}/>
-                    </div>
-                  </div>
-                  {/* Batch schedule info */}
-                  {totalFiles>0&&(
-                    <div style={{background:'rgba(91,79,233,0.06)',borderRadius:8,padding:'10px 14px',fontSize:12}}>
-                      <div style={{fontWeight:600,marginBottom:6}}>📅 Batch schedule — every 14 days, {Math.max(reelFiles.length,storyFiles.length,postFiles.length)} batches</div>
-                      {schedule.slice(0,4).map((b,i)=>(
-                        <div key={i} style={{display:'flex',gap:12,fontSize:11,color:'var(--text-3)',padding:'2px 0'}}>
-                          <span style={{fontFamily:'var(--font-dm-mono)',minWidth:60}}>Batch {b.batchNum}</span>
-                          <span>{b.reel?.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</span>
-                          {b.reel&&<span style={{color:'#5B4FE9'}}>🎬 reel {postTime}</span>}
-                          {b.story&&<span style={{color:'#f59e0b'}}>📸 story +30m</span>}
-                          {b.post&&<span style={{color:'#00C896'}}>🖼 post +60m</span>}
-                        </div>
-                      ))}
-                      {schedule.length>4&&<div style={{fontSize:11,color:'var(--text-3)',marginTop:4}}>+ {schedule.length-4} more batches</div>}
-                    </div>
-                  )}
-                </div>
-
-                {/* Upload zones */}
-                <div className="card" style={{marginBottom:14,display:'flex',flexDirection:'column',gap:14}}>
-                  <div style={{fontWeight:600,fontSize:13,marginBottom:2}}>Content — upload all three types for each batch</div>
-                  <FileDropZone type="reel" files={reelFiles} setFiles={setReelFiles} inputRef={reelRef}/>
-                  <FileDropZone type="story" files={storyFiles} setFiles={setStoryFiles} inputRef={storyRef}/>
-                  <FileDropZone type="post" files={postFiles} setFiles={setPostFiles} inputRef={postRef}/>
-                </div>
-
-                {/* Caption */}
-                <div className="card" style={{marginBottom:14}}>
-                  <label style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',display:'block',marginBottom:6}}>Default caption (applies to all, edit per-item after)</label>
-                  <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Add caption, hashtags, mentions..." rows={2}
-                    style={{width:'100%',background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}/>
-                </div>
-
-                {totalFiles>0&&(
-                  <div>
-                    {uploading&&(
-                      <div style={{marginBottom:12,background:'var(--surface-2)',borderRadius:8,padding:12}}>
-                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:6}}>
-                          <span style={{color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>Uploading {uploadProgress.current}/{uploadProgress.total}</span>
-                          <span style={{color:'var(--text-3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'55%'}}>{uploadProgress.file}</span>
-                        </div>
-                        <div style={{height:4,background:'var(--border)',borderRadius:2}}>
-                          <div style={{height:'100%',background:'var(--accent)',borderRadius:2,width:`${(uploadProgress.current/uploadProgress.total)*100}%`,transition:'width 0.3s'}}/>
-                        </div>
+                    {scheduleResult && (
+                      <div style={{marginTop:10,padding:'8px 12px',borderRadius:8,background:(scheduleResult.ok&&!scheduleResult.skipped)?'rgba(0,200,150,0.08)':'var(--surface-2)',fontSize:12,fontFamily:'var(--font-dm-mono)'}}>
+                        {scheduleResult.skipped ? `↩ ${scheduleResult.message}` :
+                          scheduleResult.scheduled ? `✓ ${scheduleResult.scheduled} items scheduled · Cycle ${scheduleResult.cycleNum} · Through ${String(scheduleResult.lastScheduled||'').substring(0,10)}` :
+                          `${scheduleResult.message || JSON.stringify(scheduleResult)}`}
                       </div>
                     )}
-                    {uploadDone&&<div style={{marginBottom:12,color:'var(--green)',fontSize:13,fontFamily:'var(--font-dm-mono)'}}>✓ {uploadProgress.total} files queued — opening queue...</div>}
-                    <button className="btn-primary" onClick={uploadBatch} disabled={uploading||uploadDone||!selectedAccount} style={{width:'100%',padding:'12px',fontSize:14}}>
-                      {uploading?`◌ Uploading ${uploadProgress.current}/${totalFiles}...`:uploadDone?'✓ Done':
-                        `Upload ${totalFiles} file${totalFiles!==1?'s':''} → ${schedule.length} batches for ${account?.name||'account'}`}
-                    </button>
+                  </div>
+                )}
+
+                {/* Template cards */}
+                {templates.map((tmpl,ti) => (
+                  <div key={tmpl._id} className="card" style={{marginBottom:12}}>
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:14}}>
+                          <span style={{color:'var(--text-3)',fontSize:11,fontFamily:'var(--font-dm-mono)',marginRight:6}}>T{tmpl.order}</span>
+                          {tmpl.name}
+                        </div>
+                        <div style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>{tmpl.variationCount} variations · {tmpl.caption?`"${tmpl.caption.substring(0,50)}${tmpl.caption.length>50?'...':''}"`:'no caption'}</div>
+                      </div>
+                      <button onClick={()=>deleteTemplate(tmpl._id)} style={{fontSize:11,color:'#ef4444',background:'none',border:'1px solid rgba(239,68,68,0.3)',borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Delete</button>
+                    </div>
+                    {tmpl.variations.length>0 && (
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                        {tmpl.variations.slice(0,12).map((v,vi)=>(
+                          <div key={vi} style={{fontSize:10,background:'var(--surface-2)',borderRadius:6,padding:'3px 8px',fontFamily:'var(--font-dm-mono)',color:'var(--text-3)'}}>V{v.variationNum}</div>
+                        ))}
+                        {tmpl.variations.length>12&&<div style={{fontSize:10,color:'var(--text-3)',padding:'3px 0'}}>+{tmpl.variations.length-12} more</div>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add template */}
+                {!addingTemplate ? (
+                  <button onClick={()=>{setAddingTemplate(true);setNewTplOrder(templates.length+1)}}
+                    style={{width:'100%',padding:'12px',borderRadius:10,border:'2px dashed var(--border)',background:'transparent',color:'var(--text-3)',fontSize:13,cursor:'pointer',marginTop:4}}>
+                    + Add Template {templates.length+1}
+                  </button>
+                ) : (
+                  <div className="card" style={{marginTop:8}}>
+                    <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>New Template {newTplOrder}</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 80px',gap:8}}>
+                        <input value={newTplName} onChange={e=>setNewTplName(e.target.value)} placeholder="Template name (e.g. Template 1)"
+                          style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
+                        <input type="number" min={1} max={10} value={newTplOrder} onChange={e=>setNewTplOrder(parseInt(e.target.value)||1)}
+                          style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:13,color:'var(--text)',outline:'none',textAlign:'center'}}/>
+                      </div>
+                      <textarea value={newTplCaption} onChange={e=>setNewTplCaption(e.target.value)}
+                        placeholder="Caption for ALL variations of this template (e.g. 'Check out our rates 🚀 #shipping #reseller')"
+                        rows={2} style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
+                      {/* File drop for variations */}
+                      <div>
+                        <div style={{fontSize:11,color:'var(--text-3)',marginBottom:6}}>Upload all variations ({newTplFiles.length} selected)</div>
+                        <div onDrop={e=>{e.preventDefault();setNewTplFiles(p=>[...p,...Array.from(e.dataTransfer.files)])}}
+                          onDragOver={e=>e.preventDefault()} onClick={()=>fileRef.current?.click()}
+                          style={{border:'2px dashed var(--border)',borderRadius:10,padding:newTplFiles.length?'10px 12px':'20px 16px',cursor:'pointer',minHeight:52,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                          <input ref={fileRef} type="file" accept={CONTENT_TYPES.find(c=>c.id===contentType)?.accept} multiple style={{display:'none'}} onChange={e=>setNewTplFiles(p=>[...p,...Array.from(e.target.files||[])])}/>
+                          {newTplFiles.length===0?<span style={{fontSize:12,color:'var(--text-3)'}}>Drop all {newTplFiles.length||20} variation files here (order matters)</span>:
+                            newTplFiles.map((f,i)=>(
+                              <div key={i} style={{display:'flex',alignItems:'center',gap:4,background:'var(--surface-2)',borderRadius:6,padding:'3px 8px',fontSize:11}}>
+                                <span style={{color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',minWidth:24}}>V{i+1}</span>
+                                <span style={{maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
+                                <button onClick={e=>{e.stopPropagation();setNewTplFiles(p=>p.filter((_,j)=>j!==i))}} style={{fontSize:13,color:'var(--text-3)',background:'none',border:'none',cursor:'pointer'}}>×</button>
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                      {savingTemplate && (
+                        <div style={{background:'var(--surface-2)',borderRadius:8,padding:'8px 12px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:4}}>
+                            <span style={{fontFamily:'var(--font-dm-mono)'}}>Uploading V{uploadProgress.current}/{uploadProgress.total}</span>
+                            <span style={{color:'var(--text-3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'55%'}}>{uploadProgress.file}</span>
+                          </div>
+                          <div style={{height:3,background:'var(--border)',borderRadius:2}}>
+                            <div style={{height:'100%',background:'var(--accent)',borderRadius:2,width:`${(uploadProgress.current/uploadProgress.total)*100}%`,transition:'width 0.3s'}}/>
+                          </div>
+                        </div>
+                      )}
+                      <div style={{display:'flex',gap:8}}>
+                        <button className="btn-primary" onClick={saveTemplate} disabled={savingTemplate||!newTplName||!newTplFiles.length} style={{flex:1}}>
+                          {savingTemplate?`◌ Uploading V${uploadProgress.current}/${uploadProgress.total}...`:`Save Template ${newTplOrder} + ${newTplFiles.length} variations`}
+                        </button>
+                        <button onClick={()=>{setAddingTemplate(false);setNewTplFiles([])}} style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'none',color:'var(--text-2)',cursor:'pointer',fontSize:13}}>Cancel</button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
@@ -267,92 +329,74 @@ export default function SocialPage() {
         )}
 
         {/* ── QUEUE ── */}
-        {tab==='queue'&&(
+        {tab==='queue' && (
           <div>
             <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
               {(['all','scheduled','posted','failed'] as const).map(s=>(
                 <button key={s} onClick={()=>setQFilter(s)} style={{padding:'5px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:qFilter===s?'var(--accent)':'var(--surface-2)',color:qFilter===s?'#fff':'var(--text-2)'}}>
-                  {s} ({s==='all'?queue.length:qStats[s]??0})
+                  {s} ({s==='all'?filteredQueue.length:qStats[s]??0})
                 </button>
               ))}
-              {accounts.length>1&&(
-                <select value={qAccountFilter} onChange={e=>setQAccountFilter(e.target.value)}
-                  style={{marginLeft:'auto',background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'5px 10px',fontSize:12,color:'var(--text)'}}>
-                  <option value="">All accounts</option>
-                  {accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              )}
-              <button onClick={loadAll} style={{fontSize:11,color:'var(--text-3)',background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>↻</button>
+              <button onClick={loadAll} style={{marginLeft:'auto',fontSize:11,color:'var(--text-3)',background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>↻</button>
             </div>
             {filteredQueue.length===0?(
               <div style={{textAlign:'center',padding:40,color:'var(--text-3)'}}>
                 <div style={{fontSize:32,marginBottom:8}}>📅</div>
                 <div style={{fontSize:13}}>No items in queue</div>
-                <button className="btn-primary" style={{marginTop:16,fontSize:12}} onClick={()=>setTab('upload')}>Upload content →</button>
+                <button className="btn-primary" style={{marginTop:16,fontSize:12}} onClick={()=>setTab('templates')}>Add templates →</button>
               </div>
             ):(
-              Object.entries(grouped).map(([groupKey,items])=>{
-                const acctName = accounts.find(a=>a.id===items[0]?.accountId)?.name || items[0]?.accountId
-                const batchNum = items[0]?.batchNumber
-                const reels = items.filter(i=>i.type==='reel')
-                const stories = items.filter(i=>i.type==='story')
-                const posts = items.filter(i=>i.type==='post')
-                const scheduled = items.filter(i=>i.status==='scheduled')
-                return (
-                  <div key={groupKey} className="card" style={{marginBottom:16}}>
-                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                      <div>
-                        <div style={{fontWeight:600,fontSize:13}}>{acctName} — Batch {batchNum}</div>
-                        <div style={{fontSize:11,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',marginTop:2}}>
-                          {reels.length>0&&`🎬${reels.length} `}{stories.length>0&&`📸${stories.length} `}{posts.length>0&&`🖼${posts.length} `}· {items.filter(i=>i.status==='posted').length} posted · {scheduled.length} remaining
-                        </div>
-                      </div>
-                      {scheduled.length>0&&<button onClick={async()=>{if(!confirm('Delete batch?'))return;await fetch('/api/social/queue',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({batchId:items[0].batchId})});loadAll()}} style={{fontSize:11,color:'#ef4444',background:'none',border:'1px solid rgba(239,68,68,0.3)',borderRadius:6,padding:'2px 10px',cursor:'pointer'}}>Delete</button>}
-                    </div>
-                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                      <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
-                        {['Type','File','Scheduled','Status'].map(h=><th key={h} style={{textAlign:'left',padding:'4px 8px',fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase'}}>{h}</th>)}
-                      </tr></thead>
-                      <tbody>
-                        {[...items].sort((a,b)=>['reel','story','post'].indexOf(a.type)-['reel','story','post'].indexOf(b.type)).map(item=>(
-                          <tr key={item._id} style={{borderBottom:'1px solid var(--border)'}}>
-                            <td style={{padding:'7px 8px',fontSize:16}}>{item.type==='reel'?'🎬':item.type==='story'?'📸':'🖼'}</td>
-                            <td style={{padding:'7px 8px',maxWidth:180}}><div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500}}>{item.title}</div>
-                              {item.errorMsg&&<div style={{fontSize:10,color:'#ef4444'}}>{item.errorMsg}</div>}</td>
-                            <td style={{padding:'7px 8px',color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',fontSize:11,whiteSpace:'nowrap'}}>
-                              {item.status==='posted'&&item.postedAt?new Date(item.postedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})+' ✓'
-                                :new Date(item.scheduledDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+new Date(item.scheduledDate).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
-                            </td>
-                            <td style={{padding:'7px 8px'}}><span style={{fontSize:10,background:(STATUS_COLOR[item.status]||'#666')+'22',color:STATUS_COLOR[item.status]||'#666',border:`1px solid ${STATUS_COLOR[item.status]||'#666'}44`,borderRadius:10,padding:'2px 7px',fontFamily:'var(--font-dm-mono)'}}>{item.status}</span></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              })
+              <div className="card">
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
+                    {['Type','Template','Var','Scheduled','Status','Cycle'].map(h=>(
+                      <th key={h} style={{textAlign:'left',padding:'5px 8px',fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase'}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {filteredQueue.filter(i=>qFilter==='all'||i.status===qFilter).sort((a,b)=>new Date(a.scheduledDate).getTime()-new Date(b.scheduledDate).getTime()).slice(0,100).map(item=>(
+                      <tr key={item._id} style={{borderBottom:'1px solid var(--border)'}}>
+                        <td style={{padding:'6px 8px',fontSize:16}}>{item.type==='reel'?'🎬':item.type==='story'?'📸':'🖼'}</td>
+                        <td style={{padding:'6px 8px',maxWidth:120}}>
+                          <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500,fontSize:11}}>{item.templateName||item.title}</div>
+                        </td>
+                        <td style={{padding:'6px 8px',fontFamily:'var(--font-dm-mono)',color:'var(--text-3)',fontSize:11}}>V{item.variationNum||'?'}</td>
+                        <td style={{padding:'6px 8px',fontFamily:'var(--font-dm-mono)',fontSize:11,whiteSpace:'nowrap',color:'var(--text-3)'}}>
+                          {item.status==='posted'&&item.postedAt?new Date(item.postedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})+'  ✓'
+                            :new Date(item.scheduledDate).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+new Date(item.scheduledDate).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
+                        </td>
+                        <td style={{padding:'6px 8px'}}>
+                          <span style={{fontSize:10,background:(STATUS_COLOR[item.status]||'#666')+'22',color:STATUS_COLOR[item.status]||'#666',border:`1px solid ${STATUS_COLOR[item.status]||'#666'}44`,borderRadius:10,padding:'2px 7px',fontFamily:'var(--font-dm-mono)'}}>{item.status}</span>
+                          {item.errorMsg&&<div style={{fontSize:9,color:'#ef4444',marginTop:2}}>{item.errorMsg}</div>}
+                        </td>
+                        <td style={{padding:'6px 8px',color:'var(--text-3)',fontSize:11,fontFamily:'var(--font-dm-mono)'}}>{item.cycleNum||1}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
 
         {/* ── LOGS ── */}
-        {tab==='logs'&&(
+        {tab==='logs' && (
           <div>
-            <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center'}}>
-              <button onClick={loadAll} style={{marginLeft:'auto',fontSize:11,color:'var(--text-3)',background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>↻ Refresh</button>
+            <div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+              <button onClick={loadAll} style={{fontSize:11,color:'var(--text-3)',background:'none',border:'1px solid var(--border)',borderRadius:8,padding:'4px 10px',cursor:'pointer'}}>↻ Refresh</button>
             </div>
-            {logs.length===0?(<div style={{textAlign:'center',padding:40,color:'var(--text-3)'}}><div style={{fontSize:32,marginBottom:8}}>🤖</div><div>No bot runs yet</div></div>):(
+            {logs.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text-3)',fontSize:13}}>No bot runs yet</div>:(
               logs.map(log=>(
                 <div key={log._id} className="card" style={{marginBottom:12}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:14}}>{log.type==='reel'?'🎬':log.type==='story'?'📸':'🖼'}</span>
+                      <span style={{fontSize:14}}>{log.type==='reel'?'🎬':log.type==='story'?'📸':'📦'}</span>
                       <div>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <span style={{fontWeight:600,fontSize:13,textTransform:'capitalize'}}>{log.type} · {accounts.find(a=>a.id===log.accountId)?.name||log.accountId||'unknown'}</span>
+                          <span style={{fontWeight:600,fontSize:13,textTransform:'capitalize'}}>{log.type} · {accounts.find(a=>a.id===log.accountId)?.name||log.accountId||'batch'}</span>
                           <span style={{fontSize:10,background:(STATUS_COLOR[log.status]||'#666')+'22',color:STATUS_COLOR[log.status]||'#666',border:`1px solid ${STATUS_COLOR[log.status]||'#666'}44`,borderRadius:10,padding:'2px 7px',fontFamily:'var(--font-dm-mono)'}}>{log.status}</span>
                         </div>
-                        <div style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>
+                        <div style={{fontSize:11,color:'var(--text-3)',marginTop:1}}>
                           {new Date(log.startedAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}
                           {log.durationMs&&<span style={{marginLeft:8,fontFamily:'var(--font-dm-mono)'}}>{(log.durationMs/1000).toFixed(1)}s</span>}
                         </div>
@@ -363,9 +407,8 @@ export default function SocialPage() {
                       {log.itemsFailed>0&&<div style={{fontSize:11,color:'#ef4444'}}>{log.itemsFailed} failed</div>}
                     </div>
                   </div>
-                  {log.errorMsg&&<div style={{fontSize:12,color:'#ef4444',padding:'6px 10px',background:'rgba(239,68,68,0.06)',borderRadius:6}}>✗ {log.errorMsg}</div>}
                   {log.details?.length>0&&(
-                    <div style={{borderTop:'1px solid var(--border)',paddingTop:8}}>
+                    <div style={{borderTop:'1px solid var(--border)',paddingTop:6}}>
                       {log.details.map((d,i)=>(
                         <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'3px 0',fontSize:11}}>
                           <span style={{color:d.ok?'var(--green)':'#ef4444',fontWeight:700}}>{d.ok?'✓':'✗'}</span>
@@ -383,7 +426,7 @@ export default function SocialPage() {
         )}
 
         {/* ── ACCOUNTS ── */}
-        {tab==='accounts'&&(
+        {tab==='accounts' && (
           <div style={{maxWidth:600}}>
             {accounts.map(a=>(
               <div key={a.id} className="card" style={{marginBottom:12}}>
@@ -394,14 +437,10 @@ export default function SocialPage() {
                   </div>
                   <button onClick={async()=>{if(!confirm(`Delete ${a.name}?`))return;await fetch('/api/social/accounts',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:a.id})});loadAll()}} style={{fontSize:11,color:'#ef4444',background:'none',border:'1px solid rgba(239,68,68,0.3)',borderRadius:6,padding:'3px 10px',cursor:'pointer'}}>Delete</button>
                 </div>
-                <div style={{marginTop:10,fontSize:11,color:'var(--text-3)'}}>
-                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>🎬 </span><span>{a.reelsUrl}</span></div>
-                  <div style={{fontFamily:'var(--font-dm-mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:3}}>📸 </span><span>{a.storiesUrl}</span></div>
-                </div>
               </div>
             ))}
             <div className="card">
-              <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>+ Add account</div>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>+ Add Instagram Account</div>
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
                 <input value={addAccountForm.name} onChange={e=>setAddAccountForm(p=>({...p,name:e.target.value}))} placeholder="Account name (e.g. Sire Ship)"
                   style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
@@ -409,8 +448,8 @@ export default function SocialPage() {
                   style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
                 <input value={addAccountForm.igHandle} onChange={e=>setAddAccountForm(p=>({...p,igHandle:e.target.value}))} placeholder="@ighandle (optional)"
                   style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
-                <div style={{fontSize:11,color:'var(--text-3)'}}>Find asset_id in Meta Business Suite URL when viewing your page — e.g. ?asset_id=162845390237140</div>
-                <button className="btn-primary" onClick={addAccount} disabled={addingAccount||!addAccountForm.name||!addAccountForm.assetId}>
+                <div style={{fontSize:11,color:'var(--text-3)'}}>Find asset_id in the Meta Business Suite URL when your page is selected — e.g. ?asset_id=162845390237140</div>
+                <button className="btn-primary" onClick={async()=>{setAddingAccount(true);await fetch('/api/social/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(addAccountForm)});setAddAccountForm({name:'',assetId:'',igHandle:''});setAddingAccount(false);loadAll()}} disabled={addingAccount||!addAccountForm.name||!addAccountForm.assetId}>
                   {addingAccount?'◌ Adding...':'Add Account'}
                 </button>
               </div>
