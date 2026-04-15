@@ -1,0 +1,29 @@
+name: Social Cleanup
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'  # 1st of every month at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete DO Spaces files older than 30 days
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/social/cleanup" \
+            -H "Content-Type: application/json" \
+            --max-time 60)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE"
+          python3 -c "
+          import json
+          try:
+            d = json.loads('''$BODY''')
+            print(f'Deleted: {d.get(\"deleted\",0)} files')
+            print(f'Items cleaned: {d.get(\"items\",0)}')
+            if d.get('errors'): print(f'Errors: {d[\"errors\"]}')
+          except Exception as e: print(f'Error: {e}')
+          "

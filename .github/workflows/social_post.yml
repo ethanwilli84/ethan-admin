@@ -1,0 +1,44 @@
+name: Social Post
+
+on:
+  schedule:
+    - cron: '0 20 * * *'   # 4:00 PM EDT (UTC-4) = 20:00 UTC
+  workflow_dispatch:
+    inputs:
+      force_today:
+        description: 'Post all items scheduled for today'
+        required: false
+        default: 'true'
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post scheduled items for today
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/social/post" \
+            -H "Content-Type: application/json" \
+            -d '{"today": true}' \
+            --max-time 180)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP: $HTTP_CODE"
+          echo "Response: $BODY"
+          python3 -c "
+          import json, sys
+          try:
+            d = json.loads('''$BODY''')
+            posted = d.get('posted', 0)
+            results = d.get('results', [])
+            print(f'Posted: {posted} reels')
+            for r in results:
+              status = '✓' if r.get('ok') else '✗'
+              print(f'  {status} {r.get(\"igMediaId\") or r.get(\"error\",\"\")}')
+          except Exception as e:
+            print(f'Parse error: {e}')
+          " 2>&1
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Post failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
