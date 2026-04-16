@@ -96,7 +96,19 @@ export default function SocialPage() {
         const sigRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&type=${file.type}`)
         const sig = await sigRes.json()
         if (!sig.ok) throw new Error(sig.error || 'Upload failed — is DO Spaces configured?')
-        await fetch(sig.presignedUrl, {method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
+        // Try presigned URL first; fall back to server-side proxy upload
+        let uploadOk = false
+        try {
+          const putRes = await fetch(sig.presignedUrl, {method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
+          uploadOk = putRes.ok
+        } catch {}
+        if (!uploadOk) {
+          // Fallback: stream through server (slower but reliable)
+          const proxyRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}`, {method:'POST',body:file,headers:{'Content-Type':file.type}})
+          const pd = await proxyRes.json()
+          if (!pd.ok) throw new Error(pd.error || 'Proxy upload also failed')
+          sig.publicUrl = pd.publicUrl
+        }
         await fetch('/api/social/templates', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ variation: { templateId, variationNum:i+1, url:sig.publicUrl, title:`V${i+1}` } })

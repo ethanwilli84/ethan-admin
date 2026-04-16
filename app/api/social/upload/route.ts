@@ -1,15 +1,13 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const REGION = process.env.DO_SPACES_REGION || 'nyc3'
-const BUCKET = process.env.DO_SPACES_BUCKET || 'ethan-social'
-const ENDPOINT = `https://${REGION}.digitaloceanspaces.com`
+const BUCKET  = process.env.DO_SPACES_BUCKET  || 'ethan-social'
 
-function getS3() {
+async function getS3() {
+  const { S3Client } = await import('@aws-sdk/client-s3')
   return new S3Client({
-    endpoint: ENDPOINT,
+    endpoint: `https://${REGION}.digitaloceanspaces.com`,
     region: REGION,
     credentials: {
       accessKeyId: process.env.DO_SPACES_KEY!,
@@ -19,15 +17,27 @@ function getS3() {
   })
 }
 
-// GET /api/social/upload?filename=reel.mp4&type=video/mp4
-// Returns a presigned URL the client uploads to directly (bypasses 4MB Next.js limit)
+// GET — returns a presigned PUT URL the browser uploads to directly
 export async function GET(req: NextRequest) {
-  const filename = req.nextUrl.searchParams.get('filename') || 'reel.mp4'
+  const filename = req.nextUrl.searchParams.get('filename') || 'upload'
   const contentType = req.nextUrl.searchParams.get('type') || 'video/mp4'
-  const key = `reels/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+  const key = `social/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+  const key_env = process.env.DO_SPACES_KEY
+  const secret_env = process.env.DO_SPACES_SECRET
+
+  if (!key_env || !secret_env) {
+    return NextResponse.json({
+      ok: false,
+      error: 'DO_SPACES_KEY and DO_SPACES_SECRET not configured in app env vars'
+    }, { status: 500 })
+  }
 
   try {
-    const s3 = getS3()
+    const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3')
+    const s3 = await getS3()
+
     const cmd = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
@@ -38,6 +48,44 @@ export async function GET(req: NextRequest) {
     const publicUrl = `https://${BUCKET}.${REGION}.digitaloceanspaces.com/${key}`
     return NextResponse.json({ ok: true, presignedUrl, publicUrl, key })
   } catch (e: unknown) {
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 })
+    const msg = (e as Error).message
+    // Give a clear actionable error
+    const isNotExist = msg.includes('NoSuchBucket') || msg.includes('does not exist')
+    const errorMsg = isNotExist
+      ? `Bucket "${BUCKET}" does not exist. Create it at cloud.digitalocean.com → Spaces → Create Space → name "${BUCKET}", region "${REGION}"`
+      : msg
+    return NextResponse.json({ ok: false, error: errorMsg }, { status: 500 })
+  }
+}
+
+// POST — multipart fallback: browser uploads file body directly to this route,
+// server streams it to DO Spaces. Slower but works when presigned URLs fail.
+export async function POST(req: NextRequest) {
+  const filename = req.nextUrl.searchParams.get('filename') || 'upload'
+  const contentType = req.headers.get('content-type') || 'video/mp4'
+  const key = `social/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+  try {
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3')
+    const s3 = await getS3()
+    const body = Buffer.from(await req.arrayBuffer())
+
+    await s3.send(new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ACL: 'public-read',
+    }))
+
+    const publicUrl = `https://${BUCKET}.${REGION}.digitaloceanspaces.com/${key}`
+    return NextResponse.json({ ok: true, publicUrl, key })
+  } catch (e: unknown) {
+    const msg = (e as Error).message
+    const isNotExist = msg.includes('NoSuchBucket') || msg.includes('does not exist')
+    const errorMsg = isNotExist
+      ? `Bucket "${BUCKET}" does not exist — create it at cloud.digitalocean.com → Spaces → name "${BUCKET}", region "${REGION}"`
+      : msg
+    return NextResponse.json({ ok: false, error: errorMsg }, { status: 500 })
   }
 }
