@@ -30,6 +30,14 @@ export default function SocialPage() {
   // Schedule config — per content type
   const [postDays, setPostDays] = useState<Record<string,number[]>>(DEFAULT_DAYS)
   const [postTimes, setPostTimes] = useState<Record<string,string>>(DEFAULT_TIMES)
+  // Per-day times: { reel: { 1: '20:00', 3: '19:00', ... }, story: {...}, post: {...} }
+  const [perDayTimes, setPerDayTimes] = useState<Record<string,Record<number,string>>>({reel:{},story:{},post:{}})
+  // Random range: { reel: { enabled: true, from: '18:00', to: '22:00' }, ... }
+  const [randomRange, setRandomRange] = useState<Record<string,{enabled:boolean,from:string,to:string}>>({
+    reel:{enabled:false,from:'18:00',to:'22:00'},
+    story:{enabled:false,from:'08:00',to:'11:00'},
+    post:{enabled:false,from:'19:00',to:'22:00'},
+  })
 
   // Preview modal
   const [showPreview, setShowPreview] = useState(false)
@@ -147,7 +155,7 @@ export default function SocialPage() {
   async function runPreview() {
     setPreviewing(true); setSchedResult(null)
     const r = await fetch('/api/social/schedule',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({accountId:selectedAccount,contentType,postDays:postDays[contentType],postTime:postTimes[contentType],force:true,preview:true})})
+      body:JSON.stringify({accountId:selectedAccount,contentType,postDays:postDays[contentType],postTime:postTimes[contentType],perDayTimes:perDayTimes[contentType]||{},randomRange:randomRange[contentType],force:true,preview:true})})
     const d = await r.json()
     if (d.ok && d.preview) { setPreviewItems(d.items as PreviewItem[]); setShowPreview(true) }
     else alert(d.error||'Preview failed')
@@ -157,7 +165,7 @@ export default function SocialPage() {
   async function confirmSchedule() {
     setConfirming(true)
     const r = await fetch('/api/social/schedule',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({accountId:selectedAccount,contentType,postDays:postDays[contentType],postTime:postTimes[contentType],force:true})})
+      body:JSON.stringify({accountId:selectedAccount,contentType,postDays:postDays[contentType],postTime:postTimes[contentType],perDayTimes:perDayTimes[contentType]||{},randomRange:randomRange[contentType],force:true})})
     const d = await r.json()
     setSchedResult(d); setShowPreview(false); setConfirming(false)
     loadAll(); loadTemplates()
@@ -313,11 +321,49 @@ export default function SocialPage() {
                             ))}
                           </div>
                         </div>
-                        {/* Time */}
+                        {/* Time — per-day + random range */}
                         <div style={{marginBottom:12}}>
-                          <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',marginBottom:6}}>Post time</div>
-                          <input type="time" value={activeTime} onChange={e=>setPostTimes(p=>({...p,[contentType]:e.target.value}))}
-                            style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 12px',fontSize:14,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                            <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase'}}>Post time</div>
+                            <button onClick={()=>setRandomRange(p=>({...p,[contentType]:{...p[contentType],enabled:!p[contentType].enabled}}))}
+                              style={{display:'flex',alignItems:'center',gap:6,fontSize:11,background:'none',border:'none',cursor:'pointer',color:randomRange[contentType]?.enabled?'var(--accent)':'var(--text-3)'}}>
+                              <div style={{width:28,height:16,borderRadius:8,background:randomRange[contentType]?.enabled?'var(--accent)':'var(--border)',position:'relative',transition:'background 0.2s'}}>
+                                <div style={{position:'absolute',top:2,left:randomRange[contentType]?.enabled?12:2,width:12,height:12,borderRadius:'50%',background:'#fff',transition:'left 0.2s'}}/>
+                              </div>
+                              Random range
+                            </button>
+                          </div>
+                          {randomRange[contentType]?.enabled ? (
+                            <div style={{display:'flex',alignItems:'center',gap:8}}>
+                              <input type="time" value={randomRange[contentType].from}
+                                onChange={e=>setRandomRange(p=>({...p,[contentType]:{...p[contentType],from:e.target.value}}))}
+                                style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 10px',fontSize:13,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
+                              <span style={{fontSize:11,color:'var(--text-3)'}}>to</span>
+                              <input type="time" value={randomRange[contentType].to}
+                                onChange={e=>setRandomRange(p=>({...p,[contentType]:{...p[contentType],to:e.target.value}}))}
+                                style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 10px',fontSize:13,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
+                              <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>random each week</div>
+                            </div>
+                          ) : (
+                            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                              {activeDays.map(dayIdx => (
+                                <div key={dayIdx} style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <div style={{width:28,fontSize:11,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',fontWeight:600}}>{DAY_LABELS[dayIdx]}</div>
+                                  <input type="time"
+                                    value={perDayTimes[contentType]?.[dayIdx] ?? activeTime}
+                                    onChange={e=>setPerDayTimes(p=>({...p,[contentType]:{...p[contentType],[dayIdx]:e.target.value}}))}
+                                    style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'5px 10px',fontSize:13,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
+                                </div>
+                              ))}
+                              <button onClick={()=>{
+                                const t = activeDays.length > 0 ? (perDayTimes[contentType]?.[activeDays[0]] ?? activeTime) : activeTime
+                                const all = Object.fromEntries(activeDays.map(d=>[d,t]))
+                                setPerDayTimes(p=>({...p,[contentType]:all}))
+                              }} style={{fontSize:10,color:'var(--text-3)',background:'none',border:'none',cursor:'pointer',textAlign:'left',marginTop:2}}>
+                                Set all days to same time
+                              </button>
+                            </div>
+                          )}
                         </div>
                         {/* Interleave order */}
                         {interleavePreview&&(

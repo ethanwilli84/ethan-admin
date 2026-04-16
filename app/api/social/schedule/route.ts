@@ -48,11 +48,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     accountId, contentType,
-    // Days as JS day numbers: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
-    postDays,   // array e.g. [1,3,4,0] for Mon/Wed/Thu/Sun
+    postDays,       // array of JS day numbers: 0=Sun,1=Mon...
     postTime = '20:00',
+    perDayTimes,    // { 1: '20:00', 3: '19:00', ... } — per-day overrides
+    randomRange,    // { enabled: bool, from: 'HH:MM', to: 'HH:MM' }
     force = false,
-    preview = false, // if true, return preview without writing to DB
+    preview = false,
   } = body
 
   if (!accountId || !contentType) {
@@ -117,7 +118,22 @@ export async function POST(req: NextRequest) {
   const startFrom = lastDt < today ? today : lastDt
   const newDates = getDates(startFrom, slotsNeeded, usedDates, activeDays)
 
-  const [h, m] = postTime.split(':').map(Number)
+  function getTimeForDate(d: Date): [number, number] {
+    if (randomRange?.enabled) {
+      const [fh, fm] = ((randomRange as Record<string,string>).from || '08:00').split(':').map(Number)
+      const [th, tm] = ((randomRange as Record<string,string>).to   || '22:00').split(':').map(Number)
+      const fromMins = fh * 60 + fm, toMins = th * 60 + tm
+      const seed = d.toISOString().slice(0,10).split('').reduce((a,ch) => a + ch.charCodeAt(0), 0)
+      const range = Math.max(1, toMins - fromMins)
+      const mins = fromMins + (seed % range)
+      return [Math.floor(mins / 60), mins % 60]
+    }
+    const dayTime: string = (perDayTimes && (perDayTimes as Record<number,string>)[d.getDay()])
+      ? (perDayTimes as Record<number,string>)[d.getDay()]
+      : (postTime || '12:00')
+    const [h, m] = dayTime.split(':').map(Number)
+    return [h, m]
+  }
   const batchId = `auto_${accountId}_${contentType}_${Date.now()}`
   const newItems: Record<string, unknown>[] = []
   let currentIndex = state.nextItemIndex % totalItems
@@ -125,7 +141,7 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < newDates.length; i++) {
     const item = interleaved[currentIndex]
-    const d = newDates[i]; d.setHours(h, m, 0, 0)
+    const d = newDates[i]; const [h, m] = getTimeForDate(d); d.setHours(h, m, 0, 0)
     newItems.push({
       accountId, type: contentType,
       templateId: item.templateId, templateName: item.templateName,
@@ -156,7 +172,7 @@ export async function POST(req: NextRequest) {
     { accountId, contentType },
     { $set: { accountId, contentType, nextItemIndex: currentIndex, cycleNum,
         lastScheduledDate: newDates[newDates.length - 1]?.toISOString().split('T')[0] || state.lastScheduledDate,
-        lastRunAt: new Date().toISOString(), postDays: activeDays, postTime } },
+        lastRunAt: new Date().toISOString(), postDays: activeDays, postTime, perDayTimes: perDayTimes || {}, randomRange: randomRange || {} } },
     { upsert: true }
   )
 
