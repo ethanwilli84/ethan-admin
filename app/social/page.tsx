@@ -93,25 +93,19 @@ export default function SocialPage() {
       const file = newTplFiles[i]
       setUploadProgress({current:i+1, total:newTplFiles.length, file:file.name})
       try {
-        const sigRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&type=${file.type}`)
-        const sig = await sigRes.json()
-        if (!sig.ok) throw new Error(sig.error || 'Upload failed — is DO Spaces configured?')
-        // Try presigned URL first; fall back to server-side proxy upload
-        let uploadOk = false
-        try {
-          const putRes = await fetch(sig.presignedUrl, {method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
-          uploadOk = putRes.ok
-        } catch {}
-        if (!uploadOk) {
-          // Fallback: stream through server (slower but reliable)
-          const proxyRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}`, {method:'POST',body:file,headers:{'Content-Type':file.type}})
-          const pd = await proxyRes.json()
-          if (!pd.ok) throw new Error(pd.error || 'Proxy upload also failed')
-          sig.publicUrl = pd.publicUrl
-        }
+        // Upload directly to local Mac server at localhost:3002
+        // Files saved to ~/Social/Templates/{accountId}/{contentType}/
+        const uploadRes = await fetch(
+          `http://localhost:3002/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,
+          { method:'POST', body:file, headers:{'Content-Type':file.type,'Content-Length':String(file.size)} }
+        )
+        if (!uploadRes.ok) throw new Error(`Local server error: ${uploadRes.status} — is upload_server.py running?`)
+        const uploadData = await uploadRes.json()
+        if (!uploadData.ok) throw new Error(uploadData.error || 'Local upload failed')
+        const sig = { publicUrl: uploadData.localPath }
         await fetch('/api/social/templates', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ variation: { templateId, variationNum:i+1, url:sig.publicUrl, title:`V${i+1}` } })
+          body: JSON.stringify({ variation: { templateId, variationNum:i+1, url:uploadData.localPath, title:`V${i+1}` } })
         })
       } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setSavingTemplate(false); return }
     }
