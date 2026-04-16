@@ -10,6 +10,7 @@ interface BotLog { _id:string; type:string; accountId?:string; startedAt:string;
 const CONTENT_TYPES = [
   { id:'reel', label:'Reels', icon:'🎬', accept:'video/*', days:'Mon · Wed · Thu · Sun', desc:'4 days/week — restarts after 80 posts' },
   { id:'story', label:'Stories', icon:'📸', accept:'video/*,image/*', days:'Every day', desc:'Daily — restarts after 80 days' },
+  { id:'post', label:'Feed Posts', icon:'🖼', accept:'video/*,image/*', days:'Mon · Wed · Thu · Sun', desc:'4 days/week — same days as reels, +1hr after' },
 ]
 const STATUS_COLOR:Record<string,string> = { scheduled:'#5B4FE9', posted:'#00C896', failed:'#ef4444', running:'#f59e0b', success:'#00C896', partial:'#f59e0b' }
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -18,7 +19,7 @@ export default function SocialPage() {
   const [tab, setTab] = useState<'templates'|'queue'|'logs'|'accounts'>('templates')
   const [accounts, setAccounts] = useState<IGAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState('')
-  const [contentType, setContentType] = useState<'reel'|'story'>('reel')
+  const [contentType, setContentType] = useState<'reel'|'story'|'post'>('reel')
   const [templates, setTemplates] = useState<Template[]>([])
   const [queue, setQueue] = useState<QItem[]>([])
   const [logs, setLogs] = useState<BotLog[]>([])
@@ -39,6 +40,7 @@ export default function SocialPage() {
   const [scheduleResult, setScheduleResult] = useState<Record<string,unknown>|null>(null)
   const [reelTime, setReelTime] = useState('20:00')
   const [storyTime, setStoryTime] = useState('09:00')
+  const [postTime, setPostTime] = useState('21:00')
 
   // Accounts
   const [addAccountForm, setAddAccountForm] = useState({name:'',assetId:'',igHandle:''})
@@ -111,7 +113,7 @@ export default function SocialPage() {
   async function runSchedule(force = false) {
     setScheduling(true); setScheduleResult(null)
     const timeKey = contentType === 'reel' ? reelTime : storyTime
-    const body = { accountId:selectedAccount, contentType, reelTime, storyTime, force }
+    const body = { accountId:selectedAccount, contentType, reelTime, storyTime, postTime, force }
     const r = await fetch('/api/social/schedule', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     const d = await r.json()
     setScheduleResult(d)
@@ -175,7 +177,7 @@ export default function SocialPage() {
             {tab==='templates' && (
               <div style={{marginLeft:'auto',display:'flex',gap:6}}>
                 {CONTENT_TYPES.map(ct=>(
-                  <button key={ct.id} onClick={()=>setContentType(ct.id as 'reel'|'story')} style={{padding:'5px 12px',borderRadius:10,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:contentType===ct.id?'var(--accent)':'var(--surface-2)',color:contentType===ct.id?'#fff':'var(--text-2)'}}>
+                  <button key={ct.id} onClick={()=>setContentType(ct.id as 'reel'|'story'|'post')} style={{padding:'5px 12px',borderRadius:10,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:contentType===ct.id?'var(--accent)':'var(--surface-2)',color:contentType===ct.id?'#fff':'var(--text-2)'}}>
                     {ct.icon} {ct.label}
                   </button>
                 ))}
@@ -222,8 +224,8 @@ export default function SocialPage() {
                       <div style={{display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
                         <div style={{display:'flex',gap:6,alignItems:'center'}}>
                           <span style={{fontSize:11,color:'var(--text-3)'}}>Time:</span>
-                          <input type="time" value={contentType==='reel'?reelTime:storyTime}
-                            onChange={e=>contentType==='reel'?setReelTime(e.target.value):setStoryTime(e.target.value)}
+                          <input type="time" value={contentType==='reel'?reelTime:contentType==='story'?storyTime:postTime}
+                            onChange={e=>contentType==='reel'?setReelTime(e.target.value):contentType==='story'?setStoryTime(e.target.value):setPostTime(e.target.value)}
                             style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:6,padding:'4px 8px',fontSize:12,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)',width:90}}/>
                         </div>
                         <button className="btn-primary" onClick={()=>runSchedule(false)} disabled={scheduling} style={{fontSize:12,padding:'7px 16px'}}>

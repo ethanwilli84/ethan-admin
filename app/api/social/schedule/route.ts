@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
 
-// Reel post days: Mon=1, Wed=3, Thu=4, Sun=0 (JS getDay())
+// Reel + Feed Post days: Mon=1, Wed=3, Thu=4, Sun=0
 const REEL_DAYS = new Set([1, 3, 4, 0])
+const POST_DAYS = new Set([1, 3, 4, 0])  // same as reels, different time (+1hr)
 const ADVANCE_DAYS = 30       // schedule this many days ahead
 const SCHEDULE_INTERVAL = 14  // re-run scheduler every N days
 
@@ -55,6 +56,20 @@ function getReelDates(fromDate: Date, count: number, usedDates: Set<string>): Da
   return dates
 }
 
+// Get feed post dates (Mon/Wed/Thu/Sun — same days as reels but tracked separately)
+function getPostDates(fromDate: Date, count: number, usedDates: Set<string>): Date[] {
+  const dates: Date[] = []
+  const cur = new Date(fromDate)
+  cur.setHours(0, 0, 0, 0)
+  while (dates.length < count) {
+    cur.setDate(cur.getDate() + 1)
+    if (POST_DAYS.has(cur.getDay()) && !usedDates.has(cur.toISOString().split('T')[0])) {
+      dates.push(new Date(cur))
+    }
+  }
+  return dates
+}
+
 // Get daily dates for stories (every day)
 function getStoryDates(fromDate: Date, count: number, usedDates: Set<string>): Date[] {
   const dates: Date[] = []
@@ -72,7 +87,7 @@ function getStoryDates(fromDate: Date, count: number, usedDates: Set<string>): D
 export async function POST(req: NextRequest) {
   const db = await getDb()
   const body = await req.json()
-  const { accountId, contentType, reelTime = '20:00', storyTime = '09:00', force = false } = body
+  const { accountId, contentType, reelTime = '20:00', storyTime = '09:00', postTime = '21:00', force = false } = body
 
   if (!accountId || !contentType) {
     return NextResponse.json({ ok: false, error: 'accountId and contentType required' }, { status: 400 })
@@ -123,11 +138,12 @@ export async function POST(req: NextRequest) {
   // How many slots are available up to the 30-day horizon?
   const today = new Date(); today.setHours(0, 0, 0, 0)
   let slotsNeeded = 0
-  if (contentType === 'reel') {
+  if (contentType === 'reel' || contentType === 'post') {
     // Count Mon/Wed/Thu/Sun days from tomorrow to horizon that aren't already used
+    const daySet = contentType === 'reel' ? REEL_DAYS : POST_DAYS
     const tmp = new Date(today); tmp.setDate(tmp.getDate() + 1)
     while (tmp <= horizon) {
-      if (REEL_DAYS.has(tmp.getDay()) && !usedDates.has(tmp.toISOString().split('T')[0])) slotsNeeded++
+      if (daySet.has(tmp.getDay()) && !usedDates.has(tmp.toISOString().split('T')[0])) slotsNeeded++
       tmp.setDate(tmp.getDate() + 1)
     }
   } else {
@@ -147,10 +163,12 @@ export async function POST(req: NextRequest) {
   const startFrom = lastScheduledDate < today ? today : lastScheduledDate
   const newDates = contentType === 'reel'
     ? getReelDates(startFrom, slotsNeeded, usedDates)
+    : contentType === 'post'
+    ? getPostDates(startFrom, slotsNeeded, usedDates)
     : getStoryDates(startFrom, slotsNeeded, usedDates)
 
   // Build queue items, cycling through interleaved order
-  const postTime = contentType === 'reel' ? reelTime : storyTime
+  const scheduleTime = contentType === 'reel' ? reelTime : contentType === 'story' ? storyTime : postTime
   const batchId = `auto_${accountId}_${contentType}_${Date.now()}`
   const newItems: Record<string, unknown>[] = []
   let currentIndex = state.nextItemIndex % totalItems
@@ -159,7 +177,7 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < newDates.length; i++) {
     const item = interleaved[currentIndex]
     const d = newDates[i]
-    const [h, m] = postTime.split(':').map(Number)
+    const [h, m] = scheduleTime.split(':').map(Number)
     d.setHours(h, m, 0, 0)
 
     newItems.push({

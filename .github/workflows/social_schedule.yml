@@ -13,23 +13,27 @@ jobs:
   schedule:
     runs-on: ubuntu-latest
     steps:
-      - name: Schedule next 30 days of reels and stories
+      - name: Schedule next 30 days of reels, stories, and feed posts
         run: |
           FORCE="${{ github.event.inputs.force || 'false' }}"
           BASE="${{ secrets.ADMIN_URL }}"
 
-          echo "=== Scheduling Sire Ship Reels ==="
+          echo "=== Sire Ship Reels (Mon/Wed/Thu/Sun @ 8PM) ==="
           curl -s -X POST "$BASE/api/social/schedule" \
             -H "Content-Type: application/json" \
             -d "{\"accountId\":\"sire-ship\",\"contentType\":\"reel\",\"reelTime\":\"20:00\",\"force\":$FORCE}" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Reels: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}'); [print(f'  {k}: {v}') for k,v in d.items() if k not in ('ok','message')]"
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  Reels: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}')"
 
-          echo ""
-          echo "=== Scheduling Sire Ship Stories ==="
+          echo "=== Sire Ship Stories (Daily @ 9AM) ==="
           curl -s -X POST "$BASE/api/social/schedule" \
             -H "Content-Type: application/json" \
             -d "{\"accountId\":\"sire-ship\",\"contentType\":\"story\",\"storyTime\":\"09:00\",\"force\":$FORCE}" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Stories: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}'); [print(f'  {k}: {v}') for k,v in d.items() if k not in ('ok','message')]"
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  Stories: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}')"
 
-          echo ""
+          echo "=== Sire Ship Feed Posts (Mon/Wed/Thu/Sun @ 9PM) ==="
+          curl -s -X POST "$BASE/api/social/schedule" \
+            -H "Content-Type: application/json" \
+            -d "{\"accountId\":\"sire-ship\",\"contentType\":\"post\",\"postTime\":\"21:00\",\"force\":$FORCE}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  Posts: {d.get(\"scheduled\",0)} scheduled | {d.get(\"message\",\"\")}')"
+
           echo "=== Done ==="
