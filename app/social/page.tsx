@@ -484,9 +484,9 @@ export default function SocialPage() {
                               <div style={{fontWeight:600,fontSize:14,cursor:'pointer'}} onClick={()=>startEdit(tmpl)}>{tmpl.name} <span style={{fontSize:10,color:'var(--text-3)',fontWeight:400}}>✏</span></div>
                               <button onClick={()=>deleteTemplate(tmpl._id,tmpl.name)} style={{fontSize:11,color:'#ef4444',background:'none',border:'1px solid rgba(239,68,68,0.3)',borderRadius:6,padding:'2px 10px',cursor:'pointer',flexShrink:0}}>Delete</button>
                             </div>
-                            <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8,cursor:'pointer'}} onClick={()=>startEdit(tmpl)}>
+                            {contentType!=='story' && <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8,cursor:'pointer'}} onClick={()=>startEdit(tmpl)}>
                               {tmpl.caption?`"${tmpl.caption.substring(0,80)}${tmpl.caption.length>80?'…':''}"` : <span style={{fontStyle:'italic'}}>no caption — click to add</span>}
-                            </div>
+                            </div>}
                             <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
                               {tmpl.variations.slice(0,15).map((v,vi)=>(
                                 <label key={vi} title={`Click to replace V${v.variationNum}`} style={{cursor:'pointer'}}>
@@ -532,9 +532,9 @@ export default function SocialPage() {
                         <input type="number" min={1} max={20} value={newTplOrder} onChange={e=>setNewTplOrder(parseInt(e.target.value)||1)}
                           style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 10px',fontSize:13,color:'var(--text)',outline:'none',textAlign:'center'}}/>
                       </div>
-                      <textarea value={newTplCaption} onChange={e=>setNewTplCaption(e.target.value)}
+                      {contentType!=='story' && <textarea value={newTplCaption} onChange={e=>setNewTplCaption(e.target.value)}
                         placeholder="Caption for ALL variations of this template" rows={2}
-                        style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none',resize:'vertical',fontFamily:'inherit'}}/>
+                        style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none',resize:'vertical',fontFamily:'inherit'}}/>}
                       <div>
                         <div style={{fontSize:11,color:'var(--text-3)',marginBottom:5}}>{newTplFiles.length} variations selected — order matters (V1, V2...)</div>
                         <div onDrop={e=>{e.preventDefault();setNewTplFiles(p=>[...p,...Array.from(e.dataTransfer.files)])}}
