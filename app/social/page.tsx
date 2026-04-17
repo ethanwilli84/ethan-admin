@@ -94,7 +94,7 @@ export default function SocialPage() {
     // Map settings fields to the right content type
     const daysKey = contentType==='story' ? 'storyDays' : contentType==='reel' ? 'reelDays' : 'postDays'
     const timeKey = contentType==='story' ? 'storyTime' : contentType==='reel' ? 'reelTime' : 'postTime'
-    if (s[daysKey]) setPostDays(p=>({...p,[contentType]: s[daysKey] as number[]}))
+    if (s[daysKey]) setPostDays(p=>({...p,[contentType]: [...(s[daysKey] as number[])].sort((a,b)=>a-b)}))
     if (s[timeKey]) setPostTimes(p=>({...p,[contentType]: s[timeKey] as string}))
     // Also restore random range if saved
     if (s.randomRange?.[contentType]) setRandomRange((p:Record<string,unknown>)=>({...p,[contentType]:s.randomRange[contentType]}))
@@ -217,11 +217,11 @@ export default function SocialPage() {
     return rows.join(' → ') + (rows.length<total ? ` → ... (${total} total, restarts)` : '')
   })()
 
-  const activeDays = postDays[contentType] || DEFAULT_DAYS[contentType]
+  const activeDays = [...(postDays[contentType] || DEFAULT_DAYS[contentType])].sort((a,b)=>a-b)
   const activeTime = postTimes[contentType] || DEFAULT_TIMES[contentType]
 
   function toggleDay(d:number) {
-    setPostDays(p=>({ ...p, [contentType]: p[contentType]?.includes(d) ? p[contentType].filter(x=>x!==d) : [...(p[contentType]||[]),d].sort() }))
+    setPostDays(p=>({ ...p, [contentType]: p[contentType]?.includes(d) ? p[contentType].filter(x=>x!==d) : [...(p[contentType]||[]),d].sort((a,b)=>a-b) }))
   }
 
   return (
