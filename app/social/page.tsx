@@ -229,7 +229,7 @@ export default function SocialPage() {
         if (v<t.variationCount) rows.push(`T${t.order}·V${v+1}`)
       }
     }
-    const total = templates.reduce((s,t)=>s+t.variationCount,0)*templates.length
+    const total = Math.max(...templates.map(t=>t.variationCount)) * templates.length
     return rows.join(' → ') + (rows.length<total ? ` → ... (${total} total, restarts)` : '')
   })()
 
