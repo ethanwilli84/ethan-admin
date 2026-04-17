@@ -87,12 +87,17 @@ export default function SocialPage() {
     const r = await fetch(`/api/social/templates?accountId=${selectedAccount}&contentType=${contentType}`)
     const d = await r.json()
     if (d.ok) setTemplates(d.templates.sort((a:Template,b:Template)=>a.order-b.order))
-    // Load saved schedule config for this type
-    const sr = await fetch(`/api/social/schedule?accountId=${selectedAccount}&contentType=${contentType}`)
+    // Load saved settings from DB (source of truth)
+    const sr = await fetch(`/api/social/settings?accountId=${selectedAccount}`)
     const sd = await sr.json()
-    const saved = sd.states?.find((s:Record<string,unknown>)=>s.contentType===contentType)
-    if (saved?.postDays) setPostDays(p=>({...p,[contentType]:saved.postDays as number[]}))
-    if (saved?.postTime) setPostTimes(p=>({...p,[contentType]:saved.postTime as string}))
+    const s = sd.settings || {}
+    // Map settings fields to the right content type
+    const daysKey = contentType==='story' ? 'storyDays' : contentType==='reel' ? 'reelDays' : 'postDays'
+    const timeKey = contentType==='story' ? 'storyTime' : contentType==='reel' ? 'reelTime' : 'postTime'
+    if (s[daysKey]) setPostDays(p=>({...p,[contentType]: s[daysKey] as number[]}))
+    if (s[timeKey]) setPostTimes(p=>({...p,[contentType]: s[timeKey] as string}))
+    // Also restore random range if saved
+    if (s.randomRange?.[contentType]) setRandomRange((p:Record<string,unknown>)=>({...p,[contentType]:s.randomRange[contentType]}))
   }, [selectedAccount, contentType])
 
   useEffect(()=>{ loadAll() },[])
@@ -169,17 +174,20 @@ export default function SocialPage() {
 
   async function confirmSchedule() {
     setConfirming(true)
-    // 1. Save settings to DB so GH Actions uses updated days/times
+    // 1. Save settings to DB — includes days, time, random range
+    const rr = randomRange?.[contentType] as {enabled?:boolean,from?:string,to?:string}|undefined
     await fetch('/api/social/settings',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         accountId:selectedAccount,
-        postDays: contentType==='post'  ? postDays[contentType]  : undefined,
-        postTime: contentType==='post'  ? postTimes[contentType] : undefined,
-        storyDays: contentType==='story' ? postDays[contentType] : undefined,
-        storyTime: contentType==='story' ? postTimes[contentType]: undefined,
-        reelDays: contentType==='reel'  ? postDays[contentType]  : undefined,
-        reelTime: contentType==='reel'  ? postTimes[contentType] : undefined,
+        postDays:    contentType==='post'  ? postDays[contentType]  : undefined,
+        postTime:    contentType==='post'  ? postTimes[contentType] : undefined,
+        storyDays:   contentType==='story' ? postDays[contentType]  : undefined,
+        storyTime:   contentType==='story' ? postTimes[contentType] : undefined,
+        reelDays:    contentType==='reel'  ? postDays[contentType]  : undefined,
+        reelTime:    contentType==='reel'  ? postTimes[contentType] : undefined,
         postTimezone:'America/New_York',
+        // Persist random range per content type
+        [`randomRange_${contentType}`]: rr,
       })})
     // 2. Generate infinite queue (3 years) for this content type
     const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -325,8 +333,13 @@ export default function SocialPage() {
                   <div className="card" style={{marginBottom:16}}>
                     <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:16,alignItems:'start'}}>
                       <div>
-                        <div style={{fontWeight:600,fontSize:13,marginBottom:10}}>
-                          {ct.icon} {accounts.find(a=>a.id===selectedAccount)?.name} — {ct.label} Schedule
+                        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:10}}>
+                          <div style={{fontWeight:600,fontSize:13}}>
+                            {ct.icon} {accounts.find(a=>a.id===selectedAccount)?.name} — {ct.label} Schedule
+                          </div>
+                          <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>
+                            Saved: {activeDays.map(d=>DAY_LABELS[d]).join('·')} @ {activeTime} ET
+                          </div>
                         </div>
                         {/* Day selector */}
                         <div style={{marginBottom:12}}>

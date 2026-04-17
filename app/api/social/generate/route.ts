@@ -36,9 +36,10 @@ function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: 
     localH = parts[0]; localM = parts[1]
   }
   // Convert ET local → UTC
+  // ET is UTC-4 (EDT) or UTC-5 (EST), so UTC = ET_local + abs(offset)
   const base = new Date(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, 0)
-  const etOffsetMin = getETOffsetMin(base)
-  return new Date(base.getTime() - etOffsetMin * 60000)
+  const etOffsetMin = getETOffsetMin(base)  // returns -240 (EDT) or -300 (EST)
+  return new Date(base.getTime() + Math.abs(etOffsetMin) * 60000)
 }
 
 export async function POST(req: NextRequest) {

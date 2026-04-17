@@ -146,10 +146,10 @@ export async function POST(req: NextRequest) {
       const parts = dayTime.split(':').map(Number)
       localH = parts[0]; localM = parts[1]
     }
-    // Build UTC date from ET local time
-    const etOffsetMin = getETOffset(d)
+    // Convert ET local → UTC: ET is UTC-4/UTC-5, so add abs(offset)
+    const etOffsetMin = getETOffset(d)  // -240 (EDT) or -300 (EST)
     const etMs = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, 0)
-    const utcMs = etMs - etOffsetMin * 60000  // subtract offset (offset is negative for ET)
+    const utcMs = etMs + Math.abs(etOffsetMin) * 60000
     return new Date(utcMs)
   }
   const batchId = `auto_${accountId}_${contentType}_${Date.now()}`
