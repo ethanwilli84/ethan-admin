@@ -11,10 +11,20 @@ function addDays(d: Date, n: number) {
 
 function getETOffsetMin(d: Date): number {
   // Returns ET UTC offset in minutes: EDT=-240, EST=-300
-  const jan = new Date(d.getFullYear(), 0, 1)
-  const jul = new Date(d.getFullYear(), 6, 1)
-  const stdOffset = Math.max(-jan.getTimezoneOffset(), -jul.getTimezoneOffset())
-  return -d.getTimezoneOffset() > stdOffset ? -240 : -300
+  // Can't use getTimezoneOffset() on UTC server — use explicit DST rules instead
+  // US DST: starts 2nd Sunday in March, ends 1st Sunday in November
+  const year = d.getFullYear()
+  // 2nd Sunday in March
+  const march = new Date(year, 2, 1)
+  const dstStart = new Date(year, 2, (14 - march.getDay()) % 7 + 8)
+  dstStart.setHours(2, 0, 0, 0)
+  // 1st Sunday in November
+  const nov = new Date(year, 10, 1)
+  const dstEnd = new Date(year, 10, (7 - nov.getDay()) % 7 + 1)
+  dstEnd.setHours(2, 0, 0, 0)
+  // Is the date in EDT (DST active)?
+  const isDST = d >= dstStart && d < dstEnd
+  return isDST ? -240 : -300
 }
 
 function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: string; to: string }): Date {

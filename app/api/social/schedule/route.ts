@@ -118,11 +118,17 @@ export async function POST(req: NextRequest) {
   const startFrom = lastDt < today ? today : lastDt
   const newDates = getDates(startFrom, slotsNeeded, usedDates, activeDays)
 
-  // ET UTC offset: EDT=-240min, EST=-300min
+  // ET UTC offset — use explicit DST rules (server runs UTC so getTimezoneOffset()=0)
+  // US DST: 2nd Sunday March → 1st Sunday November
   function getETOffset(d: Date): number {
-    const jan = new Date(d.getFullYear(), 0, 1); const jul = new Date(d.getFullYear(), 6, 1)
-    const stdOff = Math.max(-jan.getTimezoneOffset(), -jul.getTimezoneOffset())
-    return -d.getTimezoneOffset() > stdOff ? -240 : -300
+    const year = d.getFullYear()
+    const march = new Date(year, 2, 1)
+    const dstStart = new Date(year, 2, (14 - march.getDay()) % 7 + 8)
+    dstStart.setHours(2, 0, 0, 0)
+    const nov = new Date(year, 10, 1)
+    const dstEnd = new Date(year, 10, (7 - nov.getDay()) % 7 + 1)
+    dstEnd.setHours(2, 0, 0, 0)
+    return (d >= dstStart && d < dstEnd) ? -240 : -300
   }
 
   function getTimeForDate(d: Date): Date {
