@@ -148,14 +148,12 @@ export default function SocialPage() {
       const file=newTplFiles[i]
       setUploadProgress({current:i+1,total:newTplFiles.length,file:file.name})
       try {
-        // Step 1: get presigned URL (no size limit — uploads direct to DO Spaces)
-        const presignRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(newTplName)}&variationNum=${i+1}&mimeType=${encodeURIComponent(file.type)}`)
-        if (!presignRes.ok) throw new Error(`Presign failed ${presignRes.status}`)
-        const {presignedUrl, cdnUrl} = await presignRes.json()
-        // Step 2: upload directly to DO Spaces
-        const putRes = await fetch(presignedUrl, {method:'PUT', body:file, headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
-        if (!putRes.ok) throw new Error(`Upload failed ${putRes.status}`)
-        // Step 3: save variation URL to template
+        // Upload file through server to DO Spaces (avoids CORS/presigned issues)
+        const uploadRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(newTplName)}&variationNum=${i+1}`,
+          {method:'POST', body:file, headers:{'Content-Type':file.type}})
+        if (!uploadRes.ok) throw new Error(`Upload failed: Server error ${uploadRes.status}`)
+        const {url: cdnUrl} = await uploadRes.json()
+        // Save variation URL to template
         await fetch('/api/social/templates',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({variation:{templateId,variationNum:i+1,url:cdnUrl,title:`V${i+1}`}})})
       } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setSaving(false); return }
@@ -495,10 +493,10 @@ export default function SocialPage() {
                                   <input type="file" accept="video/*,image/*" style={{display:'none'}} onChange={async e=>{
                                     const file=e.target.files?.[0]; if(!file) return
                                     try {
-                                      const pr=await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(tmpl.name)}&variationNum=${v.variationNum}&mimeType=${encodeURIComponent(file.type)}`)
-                                      const {presignedUrl,cdnUrl}=await pr.json()
-                                      const put=await fetch(presignedUrl,{method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
-                                      if(!put.ok) throw new Error('S3 upload failed')
+                                      const pr=await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(tmpl.name)}&variationNum=${v.variationNum}`,
+                                        {method:'POST',body:file,headers:{'Content-Type':file.type}})
+                                      if(!pr.ok) throw new Error('Upload failed: '+pr.status)
+                                      const {url:cdnUrl}=await pr.json()
                                       const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:cdnUrl,uploadedAt:new Date().toISOString()}:vv)
                                       await fetch('/api/social/templates',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:tmpl._id,variations:newVars})})
                                       loadTemplates()
