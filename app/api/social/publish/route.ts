@@ -79,8 +79,10 @@ export async function POST(req: NextRequest) {
   const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000)
   const windowEnd   = new Date(now.getTime() + windowMinutes * 60 * 1000)
 
+  // mode='all' checks posts, reels, AND stories
+  const typeFilter = mode === 'all' ? { $in: ['post', 'reel', 'story'] } : mode
   const items = await db.collection('social_queue').find({
-    accountId, status: 'scheduled', type: mode,
+    accountId, status: 'scheduled', type: typeFilter,
     scheduledDate: { $gte: windowStart.toISOString(), $lte: windowEnd.toISOString() },
   }).sort({ scheduledDate: 1 }).toArray()
 

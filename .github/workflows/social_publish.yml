@@ -1,81 +1,39 @@
 name: Social Publisher
 
 on:
-  # Fires at EXACT post times — posts immediately, no Meta scheduling
-  # All times UTC. Posts at 8 PM ET = midnight UTC (0 0)
-  # Stories at 9 AM ET = 1 PM UTC (0 13)
-  #
-  # Post days: Mon(1) Wed(3) Thu(4) Sun(0) at 8 PM ET
+  # Runs every 15 minutes — API route checks if anything is due right now
+  # No hardcoded post times. Change schedule in admin UI, it just works.
   schedule:
-    - cron: '0 0 * * 1'    # Monday    8 PM ET  → posts + reels
-    - cron: '0 0 * * 3'    # Wednesday 8 PM ET  → posts + reels
-    - cron: '0 0 * * 4'    # Thursday  8 PM ET  → posts + reels
-    - cron: '0 0 * * 0'    # Sunday    8 PM ET  → posts + reels
-    - cron: '0 13 * * *'   # Daily     9 AM ET  → stories
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       mode:
-        description: 'post | reel | story'
-        default: 'post'
+        description: 'post | reel | story | all'
+        default: 'all'
         required: true
       dry_run:
         description: 'true = preview only'
         default: 'false'
-        required: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
-      - name: Determine mode
-        id: mode
+      - name: Run publisher
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
-            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
-          else
-            HOUR=$(date -u +%H)
-            if [ "$HOUR" = "13" ]; then
-              echo "mode=story" >> $GITHUB_OUTPUT
-            else
-              echo "mode=post" >> $GITHUB_OUTPUT
-            fi
-            echo "dry_run=false" >> $GITHUB_OUTPUT
-          fi
+          MODE="${{ github.event.inputs.mode || 'all' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
 
-      - name: Post to FB + IG
-        run: |
-          echo "Posting mode=${{ steps.mode.outputs.mode }} dry_run=${{ steps.mode.outputs.dry_run }}"
+          echo "mode=$MODE dry_run=$DRY_RUN time=$(date -u)"
+
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             "${{ secrets.ADMIN_URL }}/api/social/publish" \
             -H "Content-Type: application/json" \
-            -d "{\"mode\":\"${{ steps.mode.outputs.mode }}\",\"accountId\":\"sire-ship\",\"dryRun\":${{ steps.mode.outputs.dry_run }}}")
+            -d "{\"mode\":\"$MODE\",\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $HTTP_CODE: $BODY"
 
-          echo "HTTP: $HTTP_CODE"
-          echo "Response: $BODY"
-
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Request failed with HTTP $HTTP_CODE"
-            exit 1
-          fi
-
-          if echo "$BODY" | grep -q "\"ok\":false"; then
-            echo "Publish returned error"
-            exit 1
-          fi
-
-          echo "Done!"
-
-      # Also trigger reels on post days
-      - name: Post Reels (post days only)
-        if: steps.mode.outputs.mode == 'post'
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ secrets.ADMIN_URL }}/api/social/publish" \
-            -H "Content-Type: application/json" \
-            -d "{\"mode\":\"reel\",\"accountId\":\"sire-ship\",\"dryRun\":false}")
-          echo "Reels: $(echo "$RESPONSE" | head -1)"
+          [ "$HTTP_CODE" = "200" ] || exit 1

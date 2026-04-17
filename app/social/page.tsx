@@ -19,7 +19,12 @@ const DEFAULT_DAYS:Record<string,number[]> = { reel:[1,3,4,0], story:[0,1,2,3,4,
 const DEFAULT_TIMES:Record<string,string> = { reel:'20:00', story:'09:00', post:'21:00' }
 
 export default function SocialPage() {
-  const [tab, setTab] = useState<'templates'|'queue'|'logs'|'accounts'>('templates')
+  const [tab, setTab] = useState<'templates'|'queue'|'calendar'|'settings'|'logs'|'accounts'>('templates')
+
+  const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
+  const [calendarLoading, setCalendarLoading] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
   const [accounts, setAccounts] = useState<IGAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState('')
   const [contentType, setContentType] = useState<'reel'|'story'|'post'>('post')
@@ -262,7 +267,7 @@ export default function SocialPage() {
           </div>
         </div>
         <div style={{display:'flex',gap:8}}>
-          {(['templates','queue','logs','accounts'] as const).map(t=>(
+          {(['templates','queue','calendar','settings','logs','accounts'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:tab===t?'var(--accent)':'var(--surface-2)',color:tab===t?'#fff':'var(--text-2)'}}>
               {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queue.filter(i=>i.accountId===selectedAccount).length})`:t==='logs'?'🤖 Logs':'⚙ Accounts'}
             </button>
@@ -637,6 +642,173 @@ export default function SocialPage() {
             </div>
           </div>
         )}
+
+        {/* ── CALENDAR ─────────────────────────────────────────────────────── */}
+        {tab==='calendar'&&(
+          <div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:16}}>📅 Full Schedule</div>
+                <div style={{fontSize:12,color:'var(--text-3)',marginTop:2}}>Every post, forever — runs indefinitely</div>
+              </div>
+              <button className="btn-primary" style={{fontSize:12,padding:'6px 16px'}} onClick={async()=>{
+                setCalendarLoading(true)
+                const r = await fetch(`/api/social/queue?accountId=${selectedAccount}&status=scheduled&limit=2000`)
+                const d = await r.json()
+                setCalendarItems(d.items||[])
+                setCalendarLoading(false)
+              }}>{calendarLoading?'Loading...':(calendarItems.length?'↻ Refresh':'Load Calendar')}</button>
+            </div>
+            {calendarItems.length>0&&(
+              <div>
+                <div style={{fontSize:12,color:'var(--text-3)',marginBottom:12,display:'flex',gap:16}}>
+                  <span>{calendarItems.length} posts queued</span>
+                  <span>·</span>
+                  <span>{new Set(calendarItems.map((i:Record<string,unknown>)=>i.templateName as string)).size} templates cycling</span>
+                  <span>·</span>
+                  <span>Until {new Date(calendarItems[calendarItems.length-1]?.scheduledDate as string).toLocaleDateString('en-US',{month:'short',year:'numeric'})}</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead style={{position:'sticky',top:0,background:'var(--surface)',zIndex:1}}>
+                      <tr style={{borderBottom:'1px solid var(--border)'}}>
+                        {['#','Date','Day','Time ET','Template','Var','Type','Status'].map(h=>(
+                          <th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',fontWeight:500,whiteSpace:'nowrap'}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(calendarItems as Record<string,unknown>[]).slice(0,500).map((item,idx)=>{
+                        const dt = new Date(item.scheduledDate as string)
+                        const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+                        const now = new Date()
+                        const isPosted = item.status==='posted'
+                        const isFailed = item.status==='failed'
+                        const isPast   = dt < now && !isPosted
+                        return (
+                          <tr key={idx} style={{borderBottom:'1px solid rgba(255,255,255,0.04)',opacity:isPast?0.35:1,background:isPosted?'rgba(34,197,94,0.04)':isFailed?'rgba(239,68,68,0.04)':'transparent'}}>
+                            <td style={{padding:'6px 12px',color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',fontSize:11}}>{idx+1}</td>
+                            <td style={{padding:'6px 12px',fontFamily:'var(--font-dm-mono)',whiteSpace:'nowrap'}}>{dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+                            <td style={{padding:'6px 12px',color:'var(--text-3)'}}>{dayLabels[dt.getDay()]}</td>
+                            <td style={{padding:'6px 12px',fontFamily:'var(--font-dm-mono)',whiteSpace:'nowrap'}}>{dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/New_York'})}</td>
+                            <td style={{padding:'6px 12px',fontWeight:500,whiteSpace:'nowrap'}}>{item.templateName as string}</td>
+                            <td style={{padding:'6px 12px',color:'var(--accent)',fontFamily:'var(--font-dm-mono)'}}>V{item.variationNum as number}</td>
+                            <td style={{padding:'6px 12px',color:'var(--text-3)'}}>{item.type as string}</td>
+                            <td style={{padding:'6px 12px'}}>
+                              <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,whiteSpace:'nowrap',
+                                background:isPosted?'rgba(34,197,94,0.15)':isFailed?'rgba(239,68,68,0.15)':'rgba(99,102,241,0.12)',
+                                color:isPosted?'#22c55e':isFailed?'#ef4444':'var(--accent)'}}>
+                                {item.status as string}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {calendarItems.length>500&&<div style={{textAlign:'center',padding:'12px 0',fontSize:12,color:'var(--text-3)'}}>Showing first 500 of {calendarItems.length} · all stored in DB</div>}
+              </div>
+            )}
+            {!calendarLoading&&calendarItems.length===0&&(
+              <div style={{textAlign:'center',padding:'48px 0',color:'var(--text-3)',fontSize:13}}>
+                <div style={{fontSize:32,marginBottom:8}}>📅</div>
+                <div>Click &quot;Load Calendar&quot; to see the full schedule</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── SETTINGS ─────────────────────────────────────────────────────── */}
+        {tab==='settings'&&(
+          <div style={{maxWidth:560}}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:20}}>⚙️ Schedule Settings</div>
+
+            <div className="card" style={{marginBottom:12}}>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>📸 Feed Posts &amp; Reels</div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Post Days</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day,i)=>{
+                    const days = postDays.post||[0,1,3,4]
+                    const active = days.includes(i)
+                    return (
+                      <button key={i} onClick={()=>setPostDays(p=>({...p,post:active?days.filter((x:number)=>x!==i):[...days,i].sort()}))}
+                        style={{width:40,height:40,borderRadius:8,border:`1px solid ${active?'var(--accent)':'var(--border)'}`,cursor:'pointer',fontSize:11,fontWeight:600,
+                          background:active?'var(--accent)':'var(--surface-2)',color:active?'#fff':'var(--text-2)',transition:'all 0.15s'}}>
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Post Time (Eastern)</div>
+                <input type="time" value={postTimes.post||'20:00'} onChange={e=>setPostTimes(p=>({...p,post:e.target.value}))}
+                  style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
+              </div>
+            </div>
+
+            <div className="card" style={{marginBottom:12}}>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>📖 Stories</div>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Story Days</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day,i)=>{
+                    const days = postDays.story||[0,1,2,3,4,5,6]
+                    const active = days.includes(i)
+                    return (
+                      <button key={i} onClick={()=>setPostDays(p=>({...p,story:active?days.filter((x:number)=>x!==i):[...days,i].sort()}))}
+                        style={{width:40,height:40,borderRadius:8,border:`1px solid ${active?'var(--accent)':'var(--border)'}`,cursor:'pointer',fontSize:11,fontWeight:600,
+                          background:active?'var(--accent)':'var(--surface-2)',color:active?'#fff':'var(--text-2)',transition:'all 0.15s'}}>
+                        {day}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Story Time (Eastern)</div>
+                <input type="time" value={postTimes.story||'09:00'} onChange={e=>setPostTimes(p=>({...p,story:e.target.value}))}
+                  style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
+              </div>
+            </div>
+
+            <div className="card" style={{marginBottom:20}}>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>🔄 Post Order</div>
+              <div style={{fontSize:12,color:'var(--text-3)',marginBottom:8}}>Interleaved — cycles through all templates before repeating a variation</div>
+              <div style={{fontSize:11,color:'var(--text-2)',background:'var(--surface-2)',borderRadius:8,padding:'10px 14px',fontFamily:'var(--font-dm-mono)',lineHeight:1.6}}>
+                {interleavePreview||'Add templates to see order preview'}
+              </div>
+            </div>
+
+            <button className="btn-primary" style={{width:'100%',padding:'13px',fontSize:14,fontWeight:600}}
+              disabled={savingSettings}
+              onClick={async()=>{
+                setSavingSettings(true); setSettingsSaved(false)
+                await fetch('/api/social/settings',{
+                  method:'POST',headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({
+                    accountId:selectedAccount,
+                    postDays:postDays.post||[0,1,3,4],
+                    postTime:postTimes.post||'20:00',
+                    storyDays:postDays.story||[0,1,2,3,4,5,6],
+                    storyTime:postTimes.story||'09:00',
+                    reelDays:postDays.reel||[0,1,3,4],
+                    reelTime:postTimes.reel||'20:00',
+                    postTimezone:'America/New_York',
+                    postOrderMode:'interleaved',
+                  })
+                })
+                setSavingSettings(false); setSettingsSaved(true)
+                setTimeout(()=>setSettingsSaved(false),3000)
+              }}>
+              {savingSettings?'Saving...':settingsSaved?'✓ Saved!':'Save Settings'}
+            </button>
+            {settingsSaved&&<div style={{textAlign:'center',fontSize:12,color:'#22c55e',marginTop:10}}>Saved — re-generate queue in Templates tab to apply new days/times</div>}
+          </div>
+        )}
+
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import { ObjectId } from 'mongodb'
 export async function GET(req: NextRequest) {
   const db = await getDb()
   const status = req.nextUrl.searchParams.get('status')
+  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200')
   const accountId = req.nextUrl.searchParams.get('accountId')
   const type = req.nextUrl.searchParams.get('type')
   const today = req.nextUrl.searchParams.get('today')
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     filter.scheduledDate = { $gte: start, $lt: end }
   }
   const items = await db.collection('social_queue')
-    .find(filter).sort({ scheduledDate: 1, order: 1 }).toArray()
+    .find(filter).sort({ scheduledDate: 1, order: 1 }).limit(limit).toArray()
   return NextResponse.json({ ok: true, items })
 }
 
