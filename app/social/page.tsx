@@ -422,9 +422,24 @@ export default function SocialPage() {
                             <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8,cursor:'pointer'}} onClick={()=>startEdit(tmpl)}>
                               {tmpl.caption?`"${tmpl.caption.substring(0,80)}${tmpl.caption.length>80?'…':''}"` : <span style={{fontStyle:'italic'}}>no caption — click to add</span>}
                             </div>
-                            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                            <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
                               {tmpl.variations.slice(0,15).map((v,vi)=>(
-                                <span key={vi} style={{fontSize:10,background:'var(--surface-2)',borderRadius:5,padding:'3px 7px',fontFamily:'var(--font-dm-mono)',color:'var(--text-3)'}}>V{v.variationNum}</span>
+                                <label key={vi} title={`Click to replace V${v.variationNum}`} style={{cursor:'pointer'}}>
+                                  <input type="file" accept="video/*,image/*" style={{display:'none'}} onChange={async e=>{
+                                    const file=e.target.files?.[0]; if(!file) return
+                                    const r=await fetch(`http://localhost:3002/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,{method:'POST',body:file,headers:{'Content-Type':file.type}})
+                                    const d=await r.json()
+                                    if(d.ok){
+                                      const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:d.localPath,uploadedAt:new Date().toISOString()}:vv)
+                                      await fetch('/api/social/templates',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:tmpl._id,variations:newVars})})
+                                      loadTemplates()
+                                    } else alert('Upload failed: '+d.error)
+                                  }}/>
+                                  <div style={{fontSize:10,background:'var(--surface-2)',borderRadius:5,padding:'3px 7px',fontFamily:'var(--font-dm-mono)',color:'var(--accent)',border:'1px dashed var(--border)',cursor:'pointer'}}
+                                    title="Click to swap this variation file">
+                                    V{v.variationNum} ✏
+                                  </div>
+                                </label>
                               ))}
                               {tmpl.variationCount>15&&<span style={{fontSize:10,color:'var(--text-3)',padding:'3px 0'}}>+{tmpl.variationCount-15} more</span>}
                               <span style={{fontSize:10,color:'var(--text-3)',marginLeft:4}}>{tmpl.variationCount} variations</span>
