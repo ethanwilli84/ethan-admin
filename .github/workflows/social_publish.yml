@@ -1,54 +1,81 @@
 name: Social Publisher
 
 on:
+  # Fires at EXACT post times — posts immediately, no Meta scheduling
+  # All times UTC. Posts at 8 PM ET = midnight UTC (0 0)
+  # Stories at 9 AM ET = 1 PM UTC (0 13)
+  #
+  # Post days: Mon(1) Wed(3) Thu(4) Sun(0) at 8 PM ET
   schedule:
-    # Runs daily at 10 AM ET (2 PM UTC)
-    # Checks DB for posts scheduled within next 30 days → queues with Meta API
-    # Also runs at 9 AM ET for stories (post immediately)
-    - cron: '0 13 * * *'   # 9 AM ET  → stories
-    - cron: '0 14 * * *'   # 10 AM ET → posts + reels
+    - cron: '0 0 * * 1'    # Monday    8 PM ET  → posts + reels
+    - cron: '0 0 * * 3'    # Wednesday 8 PM ET  → posts + reels
+    - cron: '0 0 * * 4'    # Thursday  8 PM ET  → posts + reels
+    - cron: '0 0 * * 0'    # Sunday    8 PM ET  → posts + reels
+    - cron: '0 13 * * *'   # Daily     9 AM ET  → stories
   workflow_dispatch:
     inputs:
       mode:
-        description: 'scheduled (posts+reels) or stories'
-        default: 'scheduled'
+        description: 'post | reel | story'
+        default: 'post'
+        required: true
       dry_run:
-        description: 'true = preview only, false = publish'
+        description: 'true = preview only'
         default: 'false'
+        required: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Trigger publish
-        env:
-          ADMIN_URL: https://ethan-admin-hlfdr.ondigitalocean.app
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Determine mode
+        id: mode
         run: |
-          # Determine mode based on schedule time or manual input
-          HOUR=$(date -u +%H)
-          if [ "${{ github.event.inputs.mode }}" != "" ]; then
-            MODE="${{ github.event.inputs.mode }}"
-            DRY_RUN="${{ github.event.inputs.dry_run }}"
-          elif [ "$HOUR" = "13" ]; then
-            MODE="stories"
-            DRY_RUN="false"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
           else
-            MODE="scheduled"
-            DRY_RUN="false"
+            HOUR=$(date -u +%H)
+            if [ "$HOUR" = "13" ]; then
+              echo "mode=story" >> $GITHUB_OUTPUT
+            else
+              echo "mode=post" >> $GITHUB_OUTPUT
+            fi
+            echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "Running mode=$MODE dry_run=$DRY_RUN"
-
-          RESPONSE=$(curl -s -X POST "$ADMIN_URL/api/social/publish" \
+      - name: Post to FB + IG
+        run: |
+          echo "Posting mode=${{ steps.mode.outputs.mode }} dry_run=${{ steps.mode.outputs.dry_run }}"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/social/publish" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.ADMIN_API_SECRET }}" \
-            -d "{\"mode\":\"$MODE\",\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
+            -d "{\"mode\":\"${{ steps.mode.outputs.mode }}\",\"accountId\":\"sire-ship\",\"dryRun\":${{ steps.mode.outputs.dry_run }}}")
 
-          echo "Response: $RESPONSE"
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
 
-          # Fail job if Meta API errors
-          if echo "$RESPONSE" | grep -q '"ok":false'; then
-            echo "Publish failed!"
+          echo "HTTP: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Request failed with HTTP $HTTP_CODE"
             exit 1
           fi
+
+          if echo "$BODY" | grep -q "\"ok\":false"; then
+            echo "Publish returned error"
+            exit 1
+          fi
+
+          echo "Done!"
+
+      # Also trigger reels on post days
+      - name: Post Reels (post days only)
+        if: steps.mode.outputs.mode == 'post'
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/social/publish" \
+            -H "Content-Type: application/json" \
+            -d "{\"mode\":\"reel\",\"accountId\":\"sire-ship\",\"dryRun\":false}")
+          echo "Reels: $(echo "$RESPONSE" | head -1)"
