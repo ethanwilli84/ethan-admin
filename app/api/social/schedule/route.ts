@@ -111,8 +111,25 @@ export async function POST(req: NextRequest) {
     tmp.setDate(tmp.getDate() + 1)
   }
 
-  if (slotsNeeded === 0) {
+  if (slotsNeeded === 0 && !preview) {
     return NextResponse.json({ ok: true, scheduled: 0, message: 'Already fully scheduled through 30-day horizon' })
+  }
+  // For preview with full queue: show next N upcoming slots regardless
+  if (slotsNeeded === 0 && preview) {
+    // Force generate next 4 items ignoring used dates for preview purposes
+    const tmp2 = new Date(today); tmp2.setDate(tmp2.getDate() + 1)
+    let forcedSlots = 0
+    const forcedDates: Date[] = []
+    while (forcedSlots < 4) {
+      if (daySet.has(tmp2.getDay())) { forcedDates.push(new Date(tmp2)); forcedSlots++ }
+      tmp2.setDate(tmp2.getDate() + 1)
+    }
+    const previewItems = forcedDates.map((d, idx) => {
+      const scheduledDt = getTimeForDate(d)
+      const item = interleaved[(state.nextItemIndex + idx) % totalItems]
+      return { ...item, scheduledDate: scheduledDt.toISOString(), order: idx + 1 }
+    })
+    return NextResponse.json({ ok: true, preview: true, items: previewItems, count: previewItems.length, horizon: horizon.toISOString().split('T')[0] })
   }
 
   const startFrom = lastDt < today ? today : lastDt
