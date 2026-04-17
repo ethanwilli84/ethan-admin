@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const db = await getDb()
   const status = req.nextUrl.searchParams.get('status')
   const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200')
+  const countOnly = req.nextUrl.searchParams.get('countOnly') === 'true'
   const accountId = req.nextUrl.searchParams.get('accountId')
   const type = req.nextUrl.searchParams.get('type')
   const today = req.nextUrl.searchParams.get('today')
@@ -19,6 +20,10 @@ export async function GET(req: NextRequest) {
     const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString()
     filter.scheduledDate = { $gte: start, $lt: end }
+  }
+  if (countOnly) {
+    const total = await db.collection('social_queue').countDocuments(filter)
+    return NextResponse.json({ ok: true, total })
   }
   const items = await db.collection('social_queue')
     .find(filter).sort({ scheduledDate: 1, order: 1 }).limit(limit).toArray()

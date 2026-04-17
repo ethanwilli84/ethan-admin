@@ -21,6 +21,7 @@ const DEFAULT_TIMES:Record<string,string> = { reel:'20:00', story:'09:00', post:
 export default function SocialPage() {
   const [tab, setTab] = useState<'templates'|'queue'|'calendar'|'logs'|'accounts'>('templates')
 
+  const [queueTotal, setQueueTotal] = useState<number>(0)
   const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
@@ -72,13 +73,15 @@ export default function SocialPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const loadAll = useCallback(async () => {
-    const [ar,qr,lr] = await Promise.all([
+    const [ar,qr,cr,lr] = await Promise.all([
       fetch('/api/social/accounts').then(r=>r.json()),
       fetch('/api/social/queue').then(r=>r.json()),
+      fetch('/api/social/queue?countOnly=true').then(r=>r.json()).catch(()=>({total:0})),
       fetch('/api/social/logs?limit=40').then(r=>r.json()),
     ])
     if (ar.ok) { setAccounts(ar.accounts); if (!selectedAccount && ar.accounts[0]) setSelectedAccount(ar.accounts[0].id) }
     if (qr.ok) setQueue(qr.items)
+    if (cr?.total != null) setQueueTotal(cr.total)
     if (lr.ok) setLogs(lr.logs)
   }, [selectedAccount])
 
@@ -283,14 +286,14 @@ export default function SocialPage() {
         <div>
           <div className="page-title">Social Queue</div>
           <div className="page-sub">
-            {queue.filter(i=>i.status==='scheduled').length} scheduled · {accounts.length} account{accounts.length!==1?'s':''}
+            {queueTotal||queue.filter(i=>i.status==='scheduled').length} scheduled · {accounts.length} account{accounts.length!==1?'s':''}
             {lastLog&&<span style={{marginLeft:8}}>· Last run: <span style={{color:STATUS_COLOR[lastLog.status]||'var(--text-3)'}}>{lastLog.status}</span> {new Date(lastLog.startedAt).toLocaleDateString()}</span>}
           </div>
         </div>
         <div style={{display:'flex',gap:8}}>
           {(['templates','queue','calendar','logs','accounts'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:tab===t?'var(--accent)':'var(--surface-2)',color:tab===t?'#fff':'var(--text-2)'}}>
-              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queue.filter(i=>i.accountId===selectedAccount).length})`:t==='calendar'?'📆 Calendar':t==='logs'?'🤖 Logs':'⚙ Accounts'}
+              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queueTotal||queue.filter(i=>i.accountId===selectedAccount).length})`:t==='calendar'?'📆 Calendar':t==='logs'?'🤖 Logs':'⚙ Accounts'}
             </button>
           ))}
         </div>
