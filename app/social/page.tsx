@@ -25,6 +25,11 @@ export default function SocialPage() {
   const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [toast, setToast] = useState<{msg:string,type:'saving'|'success'|'error'}|null>(null)
+  const showToast = (msg:string, type:'saving'|'success'|'error'='saving', ms=0) => {
+    setToast({msg,type})
+    if (ms > 0) setTimeout(()=>setToast(null), ms)
+  }
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [accounts, setAccounts] = useState<IGAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState('')
@@ -177,26 +182,34 @@ export default function SocialPage() {
 
   async function confirmSchedule() {
     setConfirming(true)
-    // 1. Save settings to DB — includes days, time, random range
-    const rr = randomRange?.[contentType] as {enabled?:boolean,from?:string,to?:string}|undefined
-    await fetch('/api/social/settings',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        accountId:selectedAccount,
-        postDays:    contentType==='post'  ? postDays[contentType]  : undefined,
-        postTime:    contentType==='post'  ? postTimes[contentType] : undefined,
-        storyDays:   contentType==='story' ? postDays[contentType]  : undefined,
-        storyTime:   contentType==='story' ? postTimes[contentType] : undefined,
-        reelDays:    contentType==='reel'  ? postDays[contentType]  : undefined,
-        reelTime:    contentType==='reel'  ? postTimes[contentType] : undefined,
-        postTimezone:'America/New_York',
-        // Persist random range per content type
-        [`randomRange_${contentType}`]: rr,
-      })})
-    // 2. Generate infinite queue (3 years) for this content type
-    const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3})})
-    const d = await r.json()
-    setSchedResult(d); setShowPreview(false); setConfirming(false)
+    showToast('Saving settings…', 'saving')
+    try {
+      // 1. Save settings to DB
+      const rr = randomRange?.[contentType] as {enabled?:boolean,from?:string,to?:string}|undefined
+      await fetch('/api/social/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          accountId:selectedAccount,
+          postDays:    contentType==='post'  ? postDays[contentType]  : undefined,
+          postTime:    contentType==='post'  ? postTimes[contentType] : undefined,
+          storyDays:   contentType==='story' ? postDays[contentType]  : undefined,
+          storyTime:   contentType==='story' ? postTimes[contentType] : undefined,
+          reelDays:    contentType==='reel'  ? postDays[contentType]  : undefined,
+          reelTime:    contentType==='reel'  ? postTimes[contentType] : undefined,
+          postTimezone:'America/New_York',
+          [`randomRange_${contentType}`]: rr,
+        })})
+      showToast('Generating schedule — don\'t refresh…', 'saving')
+      // 2. Generate infinite queue
+      const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3})})
+      const d = await r.json()
+      const count = d.generated?.[contentType] || 0
+      setSchedResult(d); setShowPreview(false)
+      showToast(`✓ Saved! ${count} posts generated`, 'success', 4000)
+    } catch(e) {
+      showToast('Something went wrong — try again', 'error', 4000)
+    }
+    setConfirming(false)
     loadAll(); loadTemplates()
   }
 
@@ -229,6 +242,24 @@ export default function SocialPage() {
 
   return (
     <div>
+      {/* ── Toast notification ───────────────────────────────────────────── */}
+      {toast && (
+        <div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',zIndex:9999,
+          background:toast.type==='success'?'#16a34a':toast.type==='error'?'#dc2626':'#1e1b4b',
+          color:'#fff',borderRadius:12,padding:'12px 20px',fontSize:13,fontWeight:500,
+          display:'flex',alignItems:'center',gap:10,boxShadow:'0 8px 32px rgba(0,0,0,0.4)',
+          minWidth:240,justifyContent:'center',pointerEvents:'none',
+          animation:'slideUp 0.2s ease'}}>
+          {toast.type==='saving'&&<div style={{width:14,height:14,border:'2px solid rgba(255,255,255,0.3)',borderTop:'2px solid #fff',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>}
+          {toast.type==='success'&&<span style={{fontSize:16}}>✓</span>}
+          {toast.type==='error'&&<span style={{fontSize:16}}>✗</span>}
+          {toast.msg}
+        </div>
+      )}
+      <style>{`
+        @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+      `}</style>
       {/* ── Preview Modal ─────────────────────────────────────────────────── */}
       {showPreview && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
