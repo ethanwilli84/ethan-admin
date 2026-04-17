@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     // Load templates for this type
     const templates = await db.collection('social_templates')
       .find({ accountId, type })
-      .sort({ name: 1 })
+      .sort({ order: 1 })
       .toArray()
 
     if (!templates.length) {
