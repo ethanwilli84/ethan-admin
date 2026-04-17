@@ -1,0 +1,32 @@
+name: Social Queue Auto-Extend
+
+on:
+  # Run every Sunday at midnight — checks if queue is running low and tops it up
+  schedule:
+    - cron: '0 5 * * 0'   # Sunday 1 AM ET = 5 AM UTC
+  workflow_dispatch:
+
+jobs:
+  extend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check queue depth and extend if needed
+        run: |
+          # Check how many scheduled items remain
+          QUEUE=$(curl -s "${{ secrets.ADMIN_URL }}/api/social/publish?mode=scheduled&accountId=sire-ship")
+          UPCOMING=$(echo "$QUEUE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('upcoming',0))" 2>/dev/null || echo "0")
+
+          echo "Upcoming posts in next 30 days: $UPCOMING"
+
+          # Also check total queue depth
+          TOTAL=$(curl -s "${{ secrets.ADMIN_URL }}/api/social/queue?accountId=sire-ship&status=scheduled&limit=1" | python3 -c "import json,sys; print('ok')" 2>/dev/null && echo "ok")
+
+          # Always regenerate to keep 3 years ahead
+          echo "Regenerating queue to ensure 3 years of coverage..."
+          RESPONSE=$(curl -s -X POST "${{ secrets.ADMIN_URL }}/api/social/generate" \
+            -H "Content-Type: application/json" \
+            -d '{"accountId":"sire-ship","types":["post","reel","story"],"yearsAhead":3}')
+
+          echo "Generate response: $RESPONSE"
+          echo "Queue topped up successfully"

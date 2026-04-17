@@ -19,7 +19,7 @@ const DEFAULT_DAYS:Record<string,number[]> = { reel:[1,3,4,0], story:[0,1,2,3,4,
 const DEFAULT_TIMES:Record<string,string> = { reel:'20:00', story:'09:00', post:'21:00' }
 
 export default function SocialPage() {
-  const [tab, setTab] = useState<'templates'|'queue'|'calendar'|'settings'|'logs'|'accounts'>('templates')
+  const [tab, setTab] = useState<'templates'|'queue'|'calendar'|'logs'|'accounts'>('templates')
 
   const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
@@ -169,8 +169,21 @@ export default function SocialPage() {
 
   async function confirmSchedule() {
     setConfirming(true)
-    const r = await fetch('/api/social/schedule',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({accountId:selectedAccount,contentType,postDays:postDays[contentType],postTime:postTimes[contentType],perDayTimes:perDayTimes[contentType]||{},randomRange:randomRange[contentType],force:true})})
+    // 1. Save settings to DB so GH Actions uses updated days/times
+    await fetch('/api/social/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        accountId:selectedAccount,
+        postDays: contentType==='post'  ? postDays[contentType]  : undefined,
+        postTime: contentType==='post'  ? postTimes[contentType] : undefined,
+        storyDays: contentType==='story' ? postDays[contentType] : undefined,
+        storyTime: contentType==='story' ? postTimes[contentType]: undefined,
+        reelDays: contentType==='reel'  ? postDays[contentType]  : undefined,
+        reelTime: contentType==='reel'  ? postTimes[contentType] : undefined,
+        postTimezone:'America/New_York',
+      })})
+    // 2. Generate infinite queue (3 years) for this content type
+    const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3})})
     const d = await r.json()
     setSchedResult(d); setShowPreview(false); setConfirming(false)
     loadAll(); loadTemplates()
@@ -250,7 +263,7 @@ export default function SocialPage() {
             <div style={{padding:'16px 24px',borderTop:'1px solid var(--border)',display:'flex',gap:10,alignItems:'center'}}>
               <button onClick={()=>setShowPreview(false)} style={{padding:'9px 20px',borderRadius:8,border:'1px solid var(--border)',background:'none',color:'var(--text-2)',cursor:'pointer',fontSize:13}}>Cancel</button>
               <button className="btn-primary" onClick={confirmSchedule} disabled={confirming} style={{flex:1,padding:'10px',fontSize:14}}>
-                {confirming?`◌ Scheduling ${previewItems.length} items...`:`✓ Confirm & write ${previewItems.length} items to queue`}
+                {confirming?'◌ Saving & generating infinite queue...':`✓ Save settings & generate full schedule`}
               </button>
             </div>
           </div>
@@ -267,9 +280,9 @@ export default function SocialPage() {
           </div>
         </div>
         <div style={{display:'flex',gap:8}}>
-          {(['templates','queue','calendar','settings','logs','accounts'] as const).map(t=>(
+          {(['templates','queue','calendar','logs','accounts'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:tab===t?'var(--accent)':'var(--surface-2)',color:tab===t?'#fff':'var(--text-2)'}}>
-              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queue.filter(i=>i.accountId===selectedAccount).length})`:t==='logs'?'🤖 Logs':'⚙ Accounts'}
+              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queue.filter(i=>i.accountId===selectedAccount).length})`:t==='calendar'?'📆 Calendar':t==='logs'?'🤖 Logs':'⚙ Accounts'}
             </button>
           ))}
         </div>
@@ -720,100 +733,6 @@ export default function SocialPage() {
         )}
 
         {/* ── SETTINGS ─────────────────────────────────────────────────────── */}
-        {tab==='settings'&&(
-          <div style={{maxWidth:560}}>
-            <div style={{fontWeight:700,fontSize:16,marginBottom:20}}>⚙️ Schedule Settings</div>
-
-            <div className="card" style={{marginBottom:12}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>📸 Feed Posts &amp; Reels</div>
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Post Days</div>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day,i)=>{
-                    const days = postDays.post||[0,1,3,4]
-                    const active = days.includes(i)
-                    return (
-                      <button key={i} onClick={()=>setPostDays(p=>({...p,post:active?days.filter((x:number)=>x!==i):[...days,i].sort()}))}
-                        style={{width:40,height:40,borderRadius:8,border:`1px solid ${active?'var(--accent)':'var(--border)'}`,cursor:'pointer',fontSize:11,fontWeight:600,
-                          background:active?'var(--accent)':'var(--surface-2)',color:active?'#fff':'var(--text-2)',transition:'all 0.15s'}}>
-                        {day}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Post Time (Eastern)</div>
-                <input type="time" value={postTimes.post||'20:00'} onChange={e=>setPostTimes(p=>({...p,post:e.target.value}))}
-                  style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
-              </div>
-            </div>
-
-            <div className="card" style={{marginBottom:12}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:14}}>📖 Stories</div>
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Story Days</div>
-                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day,i)=>{
-                    const days = postDays.story||[0,1,2,3,4,5,6]
-                    const active = days.includes(i)
-                    return (
-                      <button key={i} onClick={()=>setPostDays(p=>({...p,story:active?days.filter((x:number)=>x!==i):[...days,i].sort()}))}
-                        style={{width:40,height:40,borderRadius:8,border:`1px solid ${active?'var(--accent)':'var(--border)'}`,cursor:'pointer',fontSize:11,fontWeight:600,
-                          background:active?'var(--accent)':'var(--surface-2)',color:active?'#fff':'var(--text-2)',transition:'all 0.15s'}}>
-                        {day}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-              <div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:7,textTransform:'uppercase',letterSpacing:'0.05em'}}>Story Time (Eastern)</div>
-                <input type="time" value={postTimes.story||'09:00'} onChange={e=>setPostTimes(p=>({...p,story:e.target.value}))}
-                  style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',fontSize:13,color:'var(--text)',outline:'none'}}/>
-              </div>
-            </div>
-
-            <div className="card" style={{marginBottom:20}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>🔄 Post Order</div>
-              <div style={{fontSize:12,color:'var(--text-3)',marginBottom:8}}>Interleaved — cycles through all templates before repeating a variation</div>
-              <div style={{fontSize:11,color:'var(--text-2)',background:'var(--surface-2)',borderRadius:8,padding:'10px 14px',fontFamily:'var(--font-dm-mono)',lineHeight:1.6}}>
-                {interleavePreview||'Add templates to see order preview'}
-              </div>
-            </div>
-
-            <button className="btn-primary" style={{width:'100%',padding:'13px',fontSize:14,fontWeight:600}}
-              disabled={savingSettings}
-              onClick={async()=>{
-                setSavingSettings(true); setSettingsSaved(false)
-                await fetch('/api/social/settings',{
-                  method:'POST',headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({
-                    accountId:selectedAccount,
-                    postDays:postDays.post||[0,1,3,4],
-                    postTime:postTimes.post||'20:00',
-                    storyDays:postDays.story||[0,1,2,3,4,5,6],
-                    storyTime:postTimes.story||'09:00',
-                    reelDays:postDays.reel||[0,1,3,4],
-                    reelTime:postTimes.reel||'20:00',
-                    postTimezone:'America/New_York',
-                    postOrderMode:'interleaved',
-                  })
-                })
-                // Auto-regenerate queue with new settings
-                await fetch('/api/social/generate', {
-                  method:'POST', headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({ accountId:selectedAccount, types:['post','reel'], yearsAhead:3 })
-                })
-                setSavingSettings(false); setSettingsSaved(true)
-                loadAll()
-                setTimeout(()=>setSettingsSaved(false),4000)
-              }}>
-              {savingSettings?'Saving...':settingsSaved?'✓ Saved!':'Save Settings'}
-            </button>
-            {settingsSaved&&<div style={{textAlign:'center',fontSize:12,color:'#22c55e',marginTop:10}}>✓ Settings saved and queue regenerated automatically</div>}
-          </div>
-        )}
 
       </div>
     </div>
