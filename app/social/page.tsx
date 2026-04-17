@@ -136,13 +136,13 @@ export default function SocialPage() {
       setUploadProgress({current:i+1,total:newTplFiles.length,file:file.name})
       try {
         const upRes = await fetch(
-          `http://localhost:3002/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,
+          `/api/social/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,
           {method:'POST',body:file,headers:{'Content-Type':file.type,'Content-Length':String(file.size)}})
         if (!upRes.ok) throw new Error(`Server error ${upRes.status}`)
         const upData = await upRes.json()
         if (!upData.ok) throw new Error(upData.error||'Upload failed')
         await fetch('/api/social/templates',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({variation:{templateId,variationNum:i+1,url:upData.localPath,title:`V${i+1}`}})})
+          body:JSON.stringify({variation:{templateId,variationNum:i+1,url:upData.url,title:`V${i+1}`}})})
       } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setSaving(false); return }
     }
     setSaving(false); setAddingTemplate(false)
@@ -432,10 +432,10 @@ export default function SocialPage() {
                                 <label key={vi} title={`Click to replace V${v.variationNum}`} style={{cursor:'pointer'}}>
                                   <input type="file" accept="video/*,image/*" style={{display:'none'}} onChange={async e=>{
                                     const file=e.target.files?.[0]; if(!file) return
-                                    const r=await fetch(`http://localhost:3002/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,{method:'POST',body:file,headers:{'Content-Type':file.type}})
+                                    const r=await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,{method:'POST',body:file,headers:{'Content-Type':file.type}})
                                     const d=await r.json()
                                     if(d.ok){
-                                      const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:d.localPath,uploadedAt:new Date().toISOString()}:vv)
+                                      const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:d.url,uploadedAt:new Date().toISOString()}:vv)
                                       await fetch('/api/social/templates',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:tmpl._id,variations:newVars})})
                                       loadTemplates()
                                     } else alert('Upload failed: '+d.error)
@@ -800,12 +800,18 @@ export default function SocialPage() {
                     postOrderMode:'interleaved',
                   })
                 })
+                // Auto-regenerate queue with new settings
+                await fetch('/api/social/generate', {
+                  method:'POST', headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({ accountId:selectedAccount, types:['post','reel'], yearsAhead:3 })
+                })
                 setSavingSettings(false); setSettingsSaved(true)
-                setTimeout(()=>setSettingsSaved(false),3000)
+                loadAll()
+                setTimeout(()=>setSettingsSaved(false),4000)
               }}>
               {savingSettings?'Saving...':settingsSaved?'✓ Saved!':'Save Settings'}
             </button>
-            {settingsSaved&&<div style={{textAlign:'center',fontSize:12,color:'#22c55e',marginTop:10}}>Saved — re-generate queue in Templates tab to apply new days/times</div>}
+            {settingsSaved&&<div style={{textAlign:'center',fontSize:12,color:'#22c55e',marginTop:10}}>✓ Settings saved and queue regenerated automatically</div>}
           </div>
         )}
 
