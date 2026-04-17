@@ -1,0 +1,54 @@
+name: Social Publisher
+
+on:
+  schedule:
+    # Runs daily at 10 AM ET (2 PM UTC)
+    # Checks DB for posts scheduled within next 30 days → queues with Meta API
+    # Also runs at 9 AM ET for stories (post immediately)
+    - cron: '0 13 * * *'   # 9 AM ET  → stories
+    - cron: '0 14 * * *'   # 10 AM ET → posts + reels
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'scheduled (posts+reels) or stories'
+        default: 'scheduled'
+      dry_run:
+        description: 'true = preview only, false = publish'
+        default: 'false'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger publish
+        env:
+          ADMIN_URL: https://ethan-admin-hlfdr.ondigitalocean.app
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Determine mode based on schedule time or manual input
+          HOUR=$(date -u +%H)
+          if [ "${{ github.event.inputs.mode }}" != "" ]; then
+            MODE="${{ github.event.inputs.mode }}"
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+          elif [ "$HOUR" = "13" ]; then
+            MODE="stories"
+            DRY_RUN="false"
+          else
+            MODE="scheduled"
+            DRY_RUN="false"
+          fi
+
+          echo "Running mode=$MODE dry_run=$DRY_RUN"
+
+          RESPONSE=$(curl -s -X POST "$ADMIN_URL/api/social/publish" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_API_SECRET }}" \
+            -d "{\"mode\":\"$MODE\",\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
+
+          echo "Response: $RESPONSE"
+
+          # Fail job if Meta API errors
+          if echo "$RESPONSE" | grep -q '"ok":false'; then
+            echo "Publish failed!"
+            exit 1
+          fi
