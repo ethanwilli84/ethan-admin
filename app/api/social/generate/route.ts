@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
   for (const type of types as string[]) {
     const days: number[]  = type === 'story' ? (settings.storyDays || [0,1,2,3,4,5,6]) : (settings.postDays || [0,1,3,4])
     const time: string    = type === 'story' ? (settings.storyTime || '09:00') : (settings.postTime || '20:00')
+    const rr = settings.randomRange?.[type] as { enabled: boolean; from: string; to: string } | undefined
 
     // Load templates for this type
     const templates = await db.collection('social_templates')
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     // Build and insert new queue
     const toInsert = postDates.map((pd, i) => {
       const s = sequence[i % sequence.length]
-      const utcDt = toET(pd, time)
+      const utcDt = toET(pd, time, rr?.enabled ? rr : undefined)
       return {
         accountId, type, status: 'scheduled',
         scheduledDate: utcDt.toISOString(),
