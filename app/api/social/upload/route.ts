@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { ObjectId } from 'mongodb'
 import { getDb } from '@/lib/mongodb'
 
 const s3 = new S3Client({
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
   // If templateId + variationNum provided, update the DB variation URL
   if (templateId && variationNum) {
     const db = await getDb()
-    const tmpl = await db.collection('social_templates').findOne({ _id: require('mongodb').ObjectId.createFromHexString(templateId) })
+    const tmpl = await db.collection('social_templates').findOne({ _id: new ObjectId(templateId) })
     if (tmpl) {
       const newVars = (tmpl.variations || []).map((v: Record<string,unknown>) =>
         v.variationNum === variationNum ? { ...v, url: cdnUrl, uploadedAt: new Date().toISOString() } : v
