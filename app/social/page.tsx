@@ -148,14 +148,16 @@ export default function SocialPage() {
       const file=newTplFiles[i]
       setUploadProgress({current:i+1,total:newTplFiles.length,file:file.name})
       try {
-        const upRes = await fetch(
-          `/api/social/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,
-          {method:'POST',body:file,headers:{'Content-Type':file.type,'Content-Length':String(file.size)}})
-        if (!upRes.ok) throw new Error(`Server error ${upRes.status}`)
-        const upData = await upRes.json()
-        if (!upData.ok) throw new Error(upData.error||'Upload failed')
+        // Step 1: get presigned URL (no size limit — uploads direct to DO Spaces)
+        const presignRes = await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(newTplName)}&variationNum=${i+1}&mimeType=${encodeURIComponent(file.type)}`)
+        if (!presignRes.ok) throw new Error(`Presign failed ${presignRes.status}`)
+        const {presignedUrl, cdnUrl} = await presignRes.json()
+        // Step 2: upload directly to DO Spaces
+        const putRes = await fetch(presignedUrl, {method:'PUT', body:file, headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
+        if (!putRes.ok) throw new Error(`Upload failed ${putRes.status}`)
+        // Step 3: save variation URL to template
         await fetch('/api/social/templates',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({variation:{templateId,variationNum:i+1,url:upData.url,title:`V${i+1}`}})})
+          body:JSON.stringify({variation:{templateId,variationNum:i+1,url:cdnUrl,title:`V${i+1}`}})})
       } catch(e) { alert(`Upload failed: ${(e as Error).message}`); setSaving(false); return }
     }
     setSaving(false); setAddingTemplate(false)
@@ -492,13 +494,15 @@ export default function SocialPage() {
                                 <label key={vi} title={`Click to replace V${v.variationNum}`} style={{cursor:'pointer'}}>
                                   <input type="file" accept="video/*,image/*" style={{display:'none'}} onChange={async e=>{
                                     const file=e.target.files?.[0]; if(!file) return
-                                    const r=await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&accountId=${selectedAccount}&contentType=${contentType}`,{method:'POST',body:file,headers:{'Content-Type':file.type}})
-                                    const d=await r.json()
-                                    if(d.ok){
-                                      const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:d.url,uploadedAt:new Date().toISOString()}:vv)
+                                    try {
+                                      const pr=await fetch(`/api/social/upload?filename=${encodeURIComponent(file.name)}&contentType=${contentType}&templateName=${encodeURIComponent(tmpl.name)}&variationNum=${v.variationNum}&mimeType=${encodeURIComponent(file.type)}`)
+                                      const {presignedUrl,cdnUrl}=await pr.json()
+                                      const put=await fetch(presignedUrl,{method:'PUT',body:file,headers:{'Content-Type':file.type,'x-amz-acl':'public-read'}})
+                                      if(!put.ok) throw new Error('S3 upload failed')
+                                      const newVars=tmpl.variations.map((vv,j)=>j===vi?{...vv,url:cdnUrl,uploadedAt:new Date().toISOString()}:vv)
                                       await fetch('/api/social/templates',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:tmpl._id,variations:newVars})})
                                       loadTemplates()
-                                    } else alert('Upload failed: '+d.error)
+                                    } catch(e){alert('Upload failed: '+(e as Error).message)}
                                   }}/>
                                   <div style={{fontSize:10,background:'var(--surface-2)',borderRadius:5,padding:'3px 7px',fontFamily:'var(--font-dm-mono)',color:'var(--accent)',border:'1px dashed var(--border)',cursor:'pointer'}}
                                     title="Click to swap this variation file">
