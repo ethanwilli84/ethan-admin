@@ -9,34 +9,36 @@ function addDays(d: Date, n: number) {
   const r = new Date(d); r.setDate(r.getDate() + n); return r
 }
 
-function toET(d: Date, timeStr: string): Date {
-  // Build a date string in ET and parse it
-  const [h, m] = timeStr.split(':').map(Number)
-  // Use Intl to figure out ET offset
-  const etStr = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-    hour12: false,
-  }).format(new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0))
-
-  // etStr is like "04/20/2026, 20:00:00" — convert back to UTC
-  const localDate = new Date(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`)
-  // Get the UTC offset for ET on that date
-  const utcOffset = getETOffset(localDate)
-  return new Date(localDate.getTime() - utcOffset * 60000)
-}
-
-function getETOffset(d: Date): number {
-  // Returns ET UTC offset in minutes (EST=-300, EDT=-240)
+function getETOffsetMin(d: Date): number {
+  // Returns ET UTC offset in minutes: EDT=-240, EST=-300
   const jan = new Date(d.getFullYear(), 0, 1)
   const jul = new Date(d.getFullYear(), 6, 1)
-  const stdOffset = Math.max(
-    -jan.getTimezoneOffset(),
-    -jul.getTimezoneOffset()
-  )
-  const isDST = -d.getTimezoneOffset() > stdOffset
-  return isDST ? -240 : -300  // EDT or EST offset from UTC
+  const stdOffset = Math.max(-jan.getTimezoneOffset(), -jul.getTimezoneOffset())
+  return -d.getTimezoneOffset() > stdOffset ? -240 : -300
+}
+
+function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: string; to: string }): Date {
+  let localH: number, localM: number
+  if (randomRange?.enabled) {
+    const [fh, fm] = randomRange.from.split(':').map(Number)
+    const [th, tm] = randomRange.to.split(':').map(Number)
+    const fromMins = fh * 60 + fm
+    const toMins   = th * 60 + tm
+    const range    = Math.max(1, toMins - fromMins)
+    // True random, fully distributed across range
+    const rand = typeof crypto !== 'undefined'
+      ? crypto.getRandomValues(new Uint32Array(1))[0] / 0xFFFFFFFF
+      : Math.random()
+    const mins = Math.floor(fromMins + rand * range)
+    localH = Math.floor(mins / 60); localM = mins % 60
+  } else {
+    const parts = timeStr.split(':').map(Number)
+    localH = parts[0]; localM = parts[1]
+  }
+  // Convert ET local → UTC
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, 0)
+  const etOffsetMin = getETOffsetMin(base)
+  return new Date(base.getTime() - etOffsetMin * 60000)
 }
 
 export async function POST(req: NextRequest) {

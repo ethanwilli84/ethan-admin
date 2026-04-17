@@ -118,21 +118,39 @@ export async function POST(req: NextRequest) {
   const startFrom = lastDt < today ? today : lastDt
   const newDates = getDates(startFrom, slotsNeeded, usedDates, activeDays)
 
-  function getTimeForDate(d: Date): [number, number] {
+  // ET UTC offset: EDT=-240min, EST=-300min
+  function getETOffset(d: Date): number {
+    const jan = new Date(d.getFullYear(), 0, 1); const jul = new Date(d.getFullYear(), 6, 1)
+    const stdOff = Math.max(-jan.getTimezoneOffset(), -jul.getTimezoneOffset())
+    return -d.getTimezoneOffset() > stdOff ? -240 : -300
+  }
+
+  function getTimeForDate(d: Date): Date {
+    let localH: number, localM: number
     if (randomRange?.enabled) {
       const [fh, fm] = ((randomRange as Record<string,string>).from || '08:00').split(':').map(Number)
       const [th, tm] = ((randomRange as Record<string,string>).to   || '22:00').split(':').map(Number)
-      const fromMins = fh * 60 + fm, toMins = th * 60 + tm
-      const seed = d.toISOString().slice(0,10).split('').reduce((a,ch) => a + ch.charCodeAt(0), 0)
-      const range = Math.max(1, toMins - fromMins)
-      const mins = fromMins + (seed % range)
-      return [Math.floor(mins / 60), mins % 60]
+      const fromMins = fh * 60 + fm
+      const toMins   = th * 60 + tm
+      const range    = Math.max(1, toMins - fromMins)
+      // True random using crypto — fully spread across the range
+      const rand = typeof crypto !== 'undefined'
+        ? crypto.getRandomValues(new Uint32Array(1))[0] / 0xFFFFFFFF
+        : Math.random()
+      const mins = Math.floor(fromMins + rand * range)
+      localH = Math.floor(mins / 60); localM = mins % 60
+    } else {
+      const dayTime: string = (perDayTimes && (perDayTimes as Record<number,string>)[d.getDay()])
+        ? (perDayTimes as Record<number,string>)[d.getDay()]
+        : (postTime || '12:00')
+      const parts = dayTime.split(':').map(Number)
+      localH = parts[0]; localM = parts[1]
     }
-    const dayTime: string = (perDayTimes && (perDayTimes as Record<number,string>)[d.getDay()])
-      ? (perDayTimes as Record<number,string>)[d.getDay()]
-      : (postTime || '12:00')
-    const [h, m] = dayTime.split(':').map(Number)
-    return [h, m]
+    // Build UTC date from ET local time
+    const etOffsetMin = getETOffset(d)
+    const etMs = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, 0)
+    const utcMs = etMs - etOffsetMin * 60000  // subtract offset (offset is negative for ET)
+    return new Date(utcMs)
   }
   const batchId = `auto_${accountId}_${contentType}_${Date.now()}`
   const newItems: Record<string, unknown>[] = []
@@ -141,13 +159,13 @@ export async function POST(req: NextRequest) {
 
   for (let i = 0; i < newDates.length; i++) {
     const item = interleaved[currentIndex]
-    const d = newDates[i]; const [h, m] = getTimeForDate(d); d.setHours(h, m, 0, 0)
+    const rawD = newDates[i]; const scheduledDt = getTimeForDate(rawD)
     newItems.push({
       accountId, type: contentType,
       templateId: item.templateId, templateName: item.templateName,
       variationNum: item.variationNum, title: item.title,
       caption: item.caption, videoUrl: item.url,
-      scheduledDate: d.toISOString(), status: 'scheduled',
+      scheduledDate: scheduledDt.toISOString(), status: 'scheduled',
       order: i + 1, batchId, cycleNum, platform: 'instagram',
       createdAt: new Date().toISOString(),
     })
