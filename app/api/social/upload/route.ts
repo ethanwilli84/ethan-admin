@@ -6,12 +6,17 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { ObjectId } from 'mongodb'
 import { getDb } from '@/lib/mongodb'
 
+// Use env vars with hardcoded fallbacks in case DO App hasn't picked them up
+const SPACES_KEY    = process.env.DO_SPACES_KEY    || 'DO801HU3FAMAY8LEP2EM'
+const SPACES_SECRET = process.env.DO_SPACES_SECRET || 'fJ7DNvfXnL7Vx+72FwZe8GgYUHBeBkoDLWJEwZ6ZG+w'
+const SPACES_REGION = process.env.DO_SPACES_REGION || 'nyc3'
+
 const s3 = new S3Client({
-  endpoint: `https://${process.env.DO_SPACES_REGION || 'nyc3'}.digitaloceanspaces.com`,
-  region: process.env.DO_SPACES_REGION || 'nyc3',
+  endpoint: `https://${SPACES_REGION}.digitaloceanspaces.com`,
+  region: SPACES_REGION,
   credentials: {
-    accessKeyId: process.env.DO_SPACES_KEY!,
-    secretAccessKey: process.env.DO_SPACES_SECRET!,
+    accessKeyId: SPACES_KEY,
+    secretAccessKey: SPACES_SECRET,
   },
   forcePathStyle: false,
 })
