@@ -136,7 +136,10 @@ export default function SocialPage() {
       fetch('/api/social/templates',{method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({id:t._id,order:i+1})})
     ))
-    loadTemplates()
+    // Auto-regenerate queue with new template order
+    await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accountId:selectedAccount,types:[contentType],yearsAhead:3,randomRange:randomRange[contentType]||null})})
+    loadTemplates(); loadAll()
   }
 
   // ── Upload new template ───────────────────────────────────────────────────
