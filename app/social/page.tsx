@@ -23,6 +23,7 @@ export default function SocialPage() {
 
   const [queueTotal, setQueueTotal] = useState<number>(0)
   const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
+  const [calMonth, setCalMonth] = useState<Date>(new Date())
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [toast, setToast] = useState<{msg:string,type:'saving'|'success'|'error'}|null>(null)
@@ -713,76 +714,117 @@ export default function SocialPage() {
         {/* ── CALENDAR ─────────────────────────────────────────────────────── */}
         {tab==='calendar'&&(
           <div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            {/* Header */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
               <div>
-                <div style={{fontWeight:700,fontSize:16}}>📅 Full Schedule</div>
-                <div style={{fontSize:12,color:'var(--text-3)',marginTop:2}}>Every post, forever — runs indefinitely</div>
+                <div style={{fontWeight:700,fontSize:16}}>📅 Content Calendar</div>
+                <div style={{fontSize:12,color:'var(--text-3)',marginTop:2}}>{queueTotal} posts scheduled · runs indefinitely</div>
               </div>
-              <button className="btn-primary" style={{fontSize:12,padding:'6px 16px'}} onClick={async()=>{
-                setCalendarLoading(true)
-                const r = await fetch(`/api/social/queue?accountId=${selectedAccount}&status=scheduled&limit=2000`)
-                const d = await r.json()
-                setCalendarItems(d.items||[])
-                setCalendarLoading(false)
-              }}>{calendarLoading?'Loading...':(calendarItems.length?'↻ Refresh':'Load Calendar')}</button>
-            </div>
-            {calendarItems.length>0&&(
-              <div>
-                <div style={{fontSize:12,color:'var(--text-3)',marginBottom:12,display:'flex',gap:16}}>
-                  <span>{calendarItems.length} posts queued</span>
-                  <span>·</span>
-                  <span>{new Set(calendarItems.map((i:Record<string,unknown>)=>i.templateName as string)).size} templates cycling</span>
-                  <span>·</span>
-                  <span>Until {new Date(calendarItems[calendarItems.length-1]?.scheduledDate as string).toLocaleDateString('en-US',{month:'short',year:'numeric'})}</span>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <button onClick={()=>setCalMonth(m=>new Date(m.getFullYear(),m.getMonth()-1,1))}
+                  style={{padding:'6px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-2)',cursor:'pointer',color:'var(--text)',fontSize:14}}>‹</button>
+                <div style={{fontWeight:600,fontSize:14,minWidth:140,textAlign:'center'}}>
+                  {calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'})}
                 </div>
-                <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead style={{position:'sticky',top:0,background:'var(--surface)',zIndex:1}}>
-                      <tr style={{borderBottom:'1px solid var(--border)'}}>
-                        {['#','Date','Day','Time ET','Template','Var','Type','Status'].map(h=>(
-                          <th key={h} style={{textAlign:'left',padding:'8px 12px',fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',fontWeight:500,whiteSpace:'nowrap'}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(calendarItems as Record<string,unknown>[]).slice(0,500).map((item,idx)=>{
-                        const dt = new Date(item.scheduledDate as string)
-                        const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-                        const now = new Date()
+                <button onClick={()=>setCalMonth(m=>new Date(m.getFullYear(),m.getMonth()+1,1))}
+                  style={{padding:'6px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-2)',cursor:'pointer',color:'var(--text)',fontSize:14}}>›</button>
+                <button className="btn-primary" style={{fontSize:12,padding:'6px 14px',marginLeft:8}} onClick={async()=>{
+                  setCalendarLoading(true)
+                  const r = await fetch(`/api/social/queue?accountId=${selectedAccount}&status=scheduled&limit=2000`)
+                  const d = await r.json()
+                  setCalendarItems(d.items||[])
+                  setCalendarLoading(false)
+                }}>{calendarLoading?'Loading...':(calendarItems.length?'↻ Refresh':'Load')}</button>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div style={{display:'flex',gap:14,marginBottom:12,fontSize:11}}>
+              {[{color:'#6366f1',label:'Feed Post'},{color:'#f59e0b',label:'Story'},{color:'#10b981',label:'Reel'},{color:'#22c55e',label:'Posted'}].map(l=>(
+                <div key={l.label} style={{display:'flex',alignItems:'center',gap:5}}>
+                  <div style={{width:10,height:10,borderRadius:3,background:l.color}}/>
+                  <span style={{color:'var(--text-3)'}}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            {(()=>{
+              const year = calMonth.getFullYear()
+              const month = calMonth.getMonth()
+              const firstDay = new Date(year, month, 1).getDay()
+              const daysInMonth = new Date(year, month+1, 0).getDate()
+              const today = new Date()
+
+              // Group items by date string
+              const byDate: Record<string, Record<string,unknown>[]> = {}
+              calendarItems.forEach((item: Record<string,unknown>) => {
+                const dt = new Date(item.scheduledDate as string)
+                // Convert UTC to ET
+                const etStr = dt.toLocaleDateString('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'})
+                if (!byDate[etStr]) byDate[etStr] = []
+                byDate[etStr].push(item)
+              })
+
+              const typeColor: Record<string,string> = {post:'#6366f1',story:'#f59e0b',reel:'#10b981'}
+
+              const cells = []
+              // Empty cells before first day
+              for (let i=0;i<firstDay;i++) cells.push(<div key={'e'+i}/>)
+              // Day cells
+              for (let d=1;d<=daysInMonth;d++) {
+                const dateObj = new Date(year, month, d)
+                const dateStr = `${String(month+1).padStart(2,'0')}/${String(d).padStart(2,'0')}/${year}`
+                const dayItems = byDate[dateStr] || []
+                const isToday = dateObj.toDateString() === today.toDateString()
+                const isPast = dateObj < today && !isToday
+
+                cells.push(
+                  <div key={d} style={{
+                    minHeight:90,border:'1px solid var(--border)',borderRadius:8,padding:'6px 7px',
+                    background:isToday?'rgba(99,102,241,0.08)':isPast?'rgba(0,0,0,0.02)':'var(--surface)',
+                    opacity:isPast&&dayItems.length===0?0.4:1,
+                  }}>
+                    <div style={{fontSize:11,fontWeight:isToday?700:500,color:isToday?'var(--accent)':'var(--text-2)',marginBottom:4}}>{d}</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                      {dayItems.slice(0,4).map((item,idx)=>{
                         const isPosted = item.status==='posted'
-                        const isFailed = item.status==='failed'
-                        const isPast   = dt < now && !isPosted
+                        const bg = isPosted?'#22c55e':(typeColor[item.type as string]||'#6366f1')
+                        const time = new Date(item.scheduledDate as string).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})
                         return (
-                          <tr key={idx} style={{borderBottom:'1px solid rgba(255,255,255,0.04)',opacity:isPast?0.35:1,background:isPosted?'rgba(34,197,94,0.04)':isFailed?'rgba(239,68,68,0.04)':'transparent'}}>
-                            <td style={{padding:'6px 12px',color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',fontSize:11}}>{idx+1}</td>
-                            <td style={{padding:'6px 12px',fontFamily:'var(--font-dm-mono)',whiteSpace:'nowrap'}}>{dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
-                            <td style={{padding:'6px 12px',color:'var(--text-3)'}}>{dayLabels[dt.getDay()]}</td>
-                            <td style={{padding:'6px 12px',fontFamily:'var(--font-dm-mono)',whiteSpace:'nowrap'}}>{dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',timeZone:'America/New_York'})}</td>
-                            <td style={{padding:'6px 12px',fontWeight:500,whiteSpace:'nowrap'}}>{item.templateName as string}</td>
-                            <td style={{padding:'6px 12px',color:'var(--accent)',fontFamily:'var(--font-dm-mono)'}}>V{item.variationNum as number}</td>
-                            <td style={{padding:'6px 12px',color:'var(--text-3)'}}>{item.type as string}</td>
-                            <td style={{padding:'6px 12px'}}>
-                              <span style={{fontSize:10,padding:'2px 8px',borderRadius:10,whiteSpace:'nowrap',
-                                background:isPosted?'rgba(34,197,94,0.15)':isFailed?'rgba(239,68,68,0.15)':'rgba(99,102,241,0.12)',
-                                color:isPosted?'#22c55e':isFailed?'#ef4444':'var(--accent)'}}>
-                                {item.status as string}
-                              </span>
-                            </td>
-                          </tr>
+                          <div key={idx} title={`${item.templateName} V${item.variationNum} · ${time}`}
+                            style={{fontSize:9,background:bg,color:'#fff',borderRadius:3,padding:'1px 5px',
+                              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',cursor:'default',lineHeight:'16px'}}>
+                            {item.type==='story'?'📖':item.type==='reel'?'🎬':'📸'} {item.templateName as string} V{item.variationNum as number}
+                          </div>
                         )
                       })}
-                    </tbody>
-                  </table>
+                      {dayItems.length>4&&<div style={{fontSize:9,color:'var(--text-3)',paddingLeft:5}}>+{dayItems.length-4} more</div>}
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div>
+                  {/* Day headers */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:4}}>
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
+                      <div key={d} style={{textAlign:'center',fontSize:10,color:'var(--text-3)',fontWeight:600,textTransform:'uppercase',padding:'4px 0'}}>{d}</div>
+                    ))}
+                  </div>
+                  {/* Day cells */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+                    {cells}
+                  </div>
+                  {calendarItems.length===0&&!calendarLoading&&(
+                    <div style={{textAlign:'center',padding:'40px 0',color:'var(--text-3)',fontSize:13}}>
+                      Click Load to see your schedule
+                    </div>
+                  )}
                 </div>
-                {calendarItems.length>500&&<div style={{textAlign:'center',padding:'12px 0',fontSize:12,color:'var(--text-3)'}}>Showing first 500 of {calendarItems.length} · all stored in DB</div>}
-              </div>
-            )}
-            {!calendarLoading&&calendarItems.length===0&&(
-              <div style={{textAlign:'center',padding:'48px 0',color:'var(--text-3)',fontSize:13}}>
-                <div style={{fontSize:32,marginBottom:8}}>📅</div>
-                <div>Click &quot;Load Calendar&quot; to see the full schedule</div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         )}
 
