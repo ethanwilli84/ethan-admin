@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Generate all dates from tomorrow to yearsAhead years out
-    const startDate = addDays(new Date(), 1)
+    const startDate = new Date()  // start from today
     const endDate   = addDays(new Date(), yearsAhead * 365)
     const postDates: Date[] = []
     let d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
