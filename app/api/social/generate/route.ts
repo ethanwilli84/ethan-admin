@@ -119,23 +119,81 @@ export async function POST(req: NextRequest) {
     const dtKey1 = `${type}DailyTimes`
     const slotTimes: string[] = (dailyTimes as string[] | null) || (settings[dtKey1] as string[]) || [time]
 
-    // Build N items per day, advancing the sequence across slots too
+    // Selection mode: 'sequential' (default, interleaved) or 'random_no_repeat'
+    // For stories we default to random_no_repeat so each day gets 3 different templates
+    const modeKey = `${type}SelectionMode`
+    const selectionMode = (settings[modeKey] as string) || (type === 'story' ? 'random_no_repeat' : 'sequential')
+
+    // Dedupe templates by NAME (keeps latest version if duplicate names exist)
+    const uniqTemplatesByName = new Map<string, typeof templates[0]>()
+    for (const t of templates) {
+      const existing = uniqTemplatesByName.get(t.name)
+      if (!existing || (t.variations?.length || 0) > (existing.variations?.length || 0)) {
+        uniqTemplatesByName.set(t.name, t)
+      }
+    }
+    const uniqTemplates = Array.from(uniqTemplatesByName.values())
+
+    // Build N items per day
     const toInsert: Record<string, unknown>[] = []
     let seqIdx = 0
     for (const pd of postDates) {
+      // Pick templates for this day based on selection mode
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let dayTemplates: any[]
+      if (selectionMode === 'random_no_repeat') {
+        // Shuffle uniqTemplates and take first N (no duplicates within the day)
+        const shuffled = [...uniqTemplates].sort(() => Math.random() - 0.5)
+        dayTemplates = shuffled.slice(0, perDay)
+        while (dayTemplates.length < perDay) {
+          dayTemplates.push(uniqTemplates[Math.floor(Math.random() * uniqTemplates.length)])
+        }
+      } else {
+        // Sequential interleave
+        dayTemplates = []
+        for (let slot = 0; slot < perDay; slot++) {
+          const s = sequence[(seqIdx + slot) % sequence.length]
+          dayTemplates.push({
+            _id: s.templateId, accountId, contentType: type, type,
+            name: s.templateName, caption: s.caption,
+            order: 0,
+            variations: [{ variationNum: s.variationNum, url: s.videoUrl, title: '', uploadedAt: '' }],
+            variationCount: 1,
+            createdAt: '', updatedAt: '',
+          })
+        }
+      }
+
+      // For random mode, pick ONE base time for the day, then offset each slot by 20s
+      // For sequential mode, use the explicit slotTimes array
+      let baseDt: Date | null = null
+      if (selectionMode === 'random_no_repeat' && rr?.enabled) {
+        baseDt = toET(pd, time, rr)  // gets a random time in range
+      }
+
       for (let slot = 0; slot < perDay; slot++) {
-        const s = sequence[seqIdx % sequence.length]
-        // Determine time for this slot: use slotTimes[slot] if available, else random in range, else fallback
-        const slotTime = slotTimes[slot] || slotTimes[slotTimes.length - 1] || time
-        const utcDt = toET(pd, slotTime, rr?.enabled ? rr : undefined)
+        const tmpl = dayTemplates[slot]
+        // Pick random variation from this template
+        const vars = tmpl.variations || []
+        const v = vars.length ? vars[Math.floor(Math.random() * vars.length)] : { variationNum: 1, url: '' }
+
+        let utcDt: Date
+        if (baseDt) {
+          // Offset each slot by 20 seconds from the random base
+          utcDt = new Date(baseDt.getTime() + slot * 20000)
+        } else {
+          const slotTime = slotTimes[slot] || slotTimes[slotTimes.length - 1] || time
+          utcDt = toET(pd, slotTime, rr?.enabled ? rr : undefined)
+        }
+
         toInsert.push({
           accountId, type, status: 'scheduled',
           scheduledDate: utcDt.toISOString(),
-          templateId: s.templateId,
-          templateName: s.templateName,
-          variationNum: s.variationNum,
-          videoUrl: s.videoUrl,
-          caption: s.caption,
+          templateId: tmpl._id?.toString() || '',
+          templateName: tmpl.name,
+          variationNum: v.variationNum,
+          videoUrl: v.url,
+          caption: tmpl.caption || '',
           createdAt: new Date().toISOString(),
         })
         seqIdx++
