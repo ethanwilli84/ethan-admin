@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   // Create new template
   const template: ContentTemplate = {
-    accountId, contentType, name, caption: caption || '', order: order || 1,
+    accountId, contentType, type: contentType, name, caption: caption || '', order: order || 1,
     variations: [], variationCount: 0,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   }
