@@ -15,7 +15,8 @@ const CREDS = {
   spacesCdn:    process.env.DO_SPACES_CDN    || 'https://ethan-social.nyc3.cdn.digitaloceanspaces.com',
 }
 
-const MATCH_WINDOW_MINUTES = 15
+const LOOKBACK_MIN = 30    // catch items missed by delayed GH Actions runs (can be 15-20min late)
+const LOOKAHEAD_MIN = 5    // small forward window — don't post too early
 
 async function ensurePublicUrl(storedUrl: string): Promise<string> {
   if (storedUrl?.includes('digitaloceanspaces.com')) return storedUrl
@@ -74,11 +75,19 @@ async function postIgStory(imageUrl: string) {
 export async function POST(req: NextRequest) {
   const db = await getDb()
   const body = await req.json().catch(() => ({}))
-  const { mode = 'post', accountId = 'sire-ship', dryRun = false, windowMinutes = MATCH_WINDOW_MINUTES } = body
+  const { mode = 'post', accountId = 'sire-ship', dryRun = false } = body
 
   const now = new Date()
-  const windowStart = new Date(now.getTime() - windowMinutes * 60 * 1000)
-  const windowEnd   = new Date(now.getTime() + windowMinutes * 60 * 1000)
+
+  // Safety: release any item stuck in 'processing' for >10 min (likely a crashed run)
+  const stuckCutoff = new Date(now.getTime() - 10 * 60 * 1000)
+  await db.collection('social_queue').updateMany(
+    { status: 'processing', claimedAt: { $lt: stuckCutoff.toISOString() } },
+    { $set: { status: 'scheduled' }, $unset: { claimedAt: '' } }
+  )
+
+  const windowStart = new Date(now.getTime() - LOOKBACK_MIN   * 60 * 1000)
+  const windowEnd   = new Date(now.getTime() + LOOKAHEAD_MIN  * 60 * 1000)
 
   // mode='all' checks posts, reels, AND stories
   const typeFilter = mode === 'all' ? { $in: ['post', 'reel', 'story'] } : mode
@@ -89,9 +98,17 @@ export async function POST(req: NextRequest) {
 
   if (!items.length) return NextResponse.json({ ok: true, posted: 0, message: `Nothing due for mode=${mode}` })
 
-  // Dedup by queue item _id (not by date) — allows multiple posts per day
-  const fresh = items.filter(i => i.status === 'scheduled')
-  if (!fresh.length) return NextResponse.json({ ok: true, posted: 0, message: 'Nothing to post' })
+  // Atomic claim — mark each item 'processing' so a concurrent cron run can't grab them
+  const fresh = []
+  for (const item of items) {
+    const claimed = await db.collection('social_queue').findOneAndUpdate(
+      { _id: item._id, status: 'scheduled' },
+      { $set: { status: 'processing', claimedAt: now.toISOString() } },
+      { returnDocument: 'after' }
+    )
+    if (claimed) fresh.push(claimed)
+  }
+  if (!fresh.length) return NextResponse.json({ ok: true, posted: 0, message: 'Nothing to post (or already claimed by another run)' })
 
   if (dryRun) return NextResponse.json({ ok: true, dryRun: true, would_post: fresh.length,
     items: fresh.map(i => ({ type: i.type, templateName: i.templateName, variationNum: i.variationNum, scheduledDate: i.scheduledDate })) })
