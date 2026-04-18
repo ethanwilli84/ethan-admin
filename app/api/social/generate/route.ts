@@ -54,7 +54,7 @@ function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: 
 
 export async function POST(req: NextRequest) {
   const db = await getDb()
-  const { accountId = 'sire-ship', types = ['post', 'reel', 'story'], yearsAhead = 3 } = await req.json().catch(() => ({}))
+  const { accountId = 'sire-ship', types = ['post', 'reel', 'story'], yearsAhead = 3, randomRange = null } = await req.json().catch(() => ({}))
 
   const settings = await db.collection('social_settings').findOne({ accountId })
   if (!settings) return NextResponse.json({ ok: false, error: 'No settings found' }, { status: 400 })
@@ -64,7 +64,10 @@ export async function POST(req: NextRequest) {
   for (const type of types as string[]) {
     const days: number[]  = type === 'story' ? (settings.storyDays || [0,1,2,3,4,5,6]) : (settings.postDays || [0,1,3,4])
     const time: string    = type === 'story' ? (settings.storyTime || '09:00') : (settings.postTime || '20:00')
-    const rr = settings.randomRange?.[type] as { enabled: boolean; from: string; to: string } | undefined
+    // DB stores as randomRange_post / randomRange_story / randomRange_reel
+    // Also check if passed directly via request body
+    const rrFromDb = (settings[`randomRange_${type}`] || settings.randomRange?.[type]) as { enabled: boolean; from: string; to: string } | undefined
+    const rr = (randomRange as { enabled: boolean; from: string; to: string } | null) || rrFromDb
 
     // Load templates for this type
     const templates = await db.collection('social_templates')

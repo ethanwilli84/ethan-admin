@@ -105,7 +105,9 @@ export default function SocialPage() {
     if (s[daysKey]) setPostDays(p=>({...p,[contentType]: [...(s[daysKey] as number[])].sort((a,b)=>a-b)}))
     if (s[timeKey]) setPostTimes(p=>({...p,[contentType]: s[timeKey] as string}))
     // Also restore random range if saved
-    if (s.randomRange?.[contentType as keyof typeof s.randomRange]) setRandomRange(p=>({...p,[contentType]:s.randomRange[contentType]}))
+    // DB stores as randomRange_post / randomRange_story / randomRange_reel
+    const rrKey = `randomRange_${contentType}`
+    if (s[rrKey]) setRandomRange(p=>({...p,[contentType]:s[rrKey]}))
   }, [selectedAccount, contentType])
 
   useEffect(()=>{ loadAll() },[])
@@ -196,12 +198,12 @@ export default function SocialPage() {
           reelDays:    contentType==='reel'  ? postDays[contentType]  : undefined,
           reelTime:    contentType==='reel'  ? postTimes[contentType] : undefined,
           postTimezone:'America/New_York',
-          randomRange: {...((randomRange as Record<string,unknown>) || {}), [contentType]: rr},
+          [`randomRange_${contentType}`]: rr,
         })})
       showToast('Generating schedule — don\'t refresh…', 'saving')
       // 2. Generate infinite queue
       const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3})})
+        body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3, randomRange:randomRange[contentType]||null})})
       const d = await r.json()
       const count = d.generated?.[contentType] || 0
       setSchedResult(d); setShowPreview(false)
