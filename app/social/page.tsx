@@ -24,6 +24,7 @@ export default function SocialPage() {
   const [queueTotal, setQueueTotal] = useState<number>(0)
   const [calendarItems, setCalendarItems] = useState<Record<string,unknown>[]>([])
   const [calMonth, setCalMonth] = useState<Date>(new Date())
+  const [previewImg, setPreviewImg] = useState<{url:string,name:string,time:string,type:string}|null>(null)
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
   const [toast, setToast] = useState<{msg:string,type:'saving'|'success'|'error'}|null>(null)
@@ -280,6 +281,24 @@ export default function SocialPage() {
         @keyframes slideUp { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
         @keyframes spin { to { transform:rotate(360deg); } }
       `}</style>
+      {/* ── Image Preview Modal ──────────────────────────────────────── */}
+      {previewImg && (
+        <div onClick={()=>setPreviewImg(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:40,cursor:'pointer'}}>
+          <div onClick={e=>e.stopPropagation()} style={{maxWidth:900,maxHeight:'90vh',background:'var(--surface)',borderRadius:14,overflow:'hidden',display:'flex',flexDirection:'column',cursor:'default'}}>
+            <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:14}}>{previewImg.type==='story'?'📖':previewImg.type==='reel'?'🎬':'📸'} {previewImg.name}</div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginTop:2,fontFamily:'var(--font-dm-mono)'}}>{previewImg.time} ET</div>
+              </div>
+              <button onClick={()=>setPreviewImg(null)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'var(--text-3)',lineHeight:1}}>×</button>
+            </div>
+            <div style={{flex:1,overflow:'auto',padding:20,display:'flex',alignItems:'center',justifyContent:'center',background:'#000'}}>
+              <img src={previewImg.url} alt={previewImg.name} style={{maxWidth:'100%',maxHeight:'75vh',objectFit:'contain'}}/>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Preview Modal ─────────────────────────────────────────────────── */}
       {showPreview && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
@@ -845,25 +864,32 @@ export default function SocialPage() {
 
                 cells.push(
                   <div key={d} style={{
-                    minHeight:90,border:'1px solid var(--border)',borderRadius:8,padding:'6px 7px',
+                    minHeight:130,border:'1px solid var(--border)',borderRadius:8,padding:'6px 7px',
                     background:isToday?'rgba(99,102,241,0.08)':isPast?'rgba(0,0,0,0.02)':'var(--surface)',
                     opacity:isPast&&dayItems.length===0?0.4:1,
                   }}>
-                    <div style={{fontSize:11,fontWeight:isToday?700:500,color:isToday?'var(--accent)':'var(--text-2)',marginBottom:4}}>{d}</div>
-                    <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                      {dayItems.slice(0,4).map((item,idx)=>{
+                    <div style={{fontSize:11,fontWeight:isToday?700:500,color:isToday?'var(--accent)':'var(--text-2)',marginBottom:5}}>{d}</div>
+                    <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                      {dayItems.slice(0,6).map((item,idx)=>{
                         const isPosted = item.status==='posted'
-                        const bg = isPosted?'#22c55e':(typeColor[item.type as string]||'#6366f1')
+                        const borderCol = isPosted?'#22c55e':(typeColor[item.type as string]||'#6366f1')
                         const time = new Date(item.scheduledDate as string).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})
+                        const url = item.videoUrl as string
+                        const typeIcon = item.type==='story'?'📖':item.type==='reel'?'🎬':'📸'
                         return (
-                          <div key={idx} title={`${item.templateName} V${item.variationNum} · ${time}`}
-                            style={{fontSize:9,background:bg,color:'#fff',borderRadius:3,padding:'1px 5px',
-                              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',cursor:'default',lineHeight:'16px'}}>
-                            {item.type==='story'?'📖':item.type==='reel'?'🎬':'📸'} {item.templateName as string} V{item.variationNum as number}
+                          <div key={idx} onClick={()=>setPreviewImg({url,name:`${item.templateName} V${item.variationNum}`,time,type:item.type as string})}
+                            title={`${typeIcon} ${item.templateName} V${item.variationNum} · ${time}`}
+                            style={{width:34,height:34,borderRadius:5,border:`2px solid ${borderCol}`,cursor:'pointer',overflow:'hidden',
+                              position:'relative',background:'var(--surface-2)'}}>
+                            {url ? (
+                              <img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}} loading="lazy"/>
+                            ) : (
+                              <div style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',height:'100%',fontSize:14}}>{typeIcon}</div>
+                            )}
                           </div>
                         )
                       })}
-                      {dayItems.length>4&&<div style={{fontSize:9,color:'var(--text-3)',paddingLeft:5}}>+{dayItems.length-4} more</div>}
+                      {dayItems.length>6&&<div style={{fontSize:9,color:'var(--text-3)',alignSelf:'center'}}>+{dayItems.length-6}</div>}
                     </div>
                   </div>
                 )
