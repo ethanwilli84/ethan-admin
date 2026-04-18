@@ -1,4 +1,5 @@
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300  // 5 min for multi-post batches with 20s delays
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
@@ -88,14 +89,9 @@ export async function POST(req: NextRequest) {
 
   if (!items.length) return NextResponse.json({ ok: true, posted: 0, message: `Nothing due for mode=${mode}` })
 
-  const fresh = []
-  for (const item of items) {
-    const dateStr = new Date(item.scheduledDate).toISOString().split('T')[0]
-    const exists = await db.collection('social_confirmed_dates').findOne({ accountId, type: item.type, date: dateStr })
-    if (!exists) fresh.push(item)
-  }
-
-  if (!fresh.length) return NextResponse.json({ ok: true, posted: 0, message: 'Already posted' })
+  // Dedup by queue item _id (not by date) — allows multiple posts per day
+  const fresh = items.filter(i => i.status === 'scheduled')
+  if (!fresh.length) return NextResponse.json({ ok: true, posted: 0, message: 'Nothing to post' })
 
   if (dryRun) return NextResponse.json({ ok: true, dryRun: true, would_post: fresh.length,
     items: fresh.map(i => ({ type: i.type, templateName: i.templateName, variationNum: i.variationNum, scheduledDate: i.scheduledDate })) })
@@ -122,12 +118,6 @@ export async function POST(req: NextRequest) {
         igId = (ig.value as {id:string}).id
       }
 
-      const dateStr = dt.toISOString().split('T')[0]
-      await db.collection('social_confirmed_dates').updateOne(
-        { accountId, type: item.type, date: dateStr },
-        { $set: { accountId, type: item.type, date: dateStr, postedAt: now.toISOString(), templateName: item.templateName, variationNum: item.variationNum, fbId, igId } },
-        { upsert: true }
-      )
       await db.collection('social_queue').updateOne(
         { _id: item._id }, { $set: { status: 'posted', postedAt: now.toISOString(), fbId, igId } }
       )
@@ -137,6 +127,11 @@ export async function POST(req: NextRequest) {
       const msg = (e as Error).message
       results.push({ label, ok: false, error: msg })
       await db.collection('social_queue').updateOne({ _id: item._id }, { $set: { status: 'failed', errorMsg: msg } })
+    }
+
+    // 20s delay between posts in same run — avoids Meta rate limits on back-to-back stories
+    if (fresh.indexOf(item) < fresh.length - 1) {
+      await new Promise(r => setTimeout(r, 20000))
     }
   }
 
