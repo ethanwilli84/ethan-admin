@@ -54,7 +54,7 @@ function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: 
 
 export async function POST(req: NextRequest) {
   const db = await getDb()
-  const { accountId = 'sire-ship', types = ['post', 'reel', 'story'], yearsAhead = 3, randomRange = null } = await req.json().catch(() => ({}))
+  const { accountId = 'sire-ship', types = ['post', 'reel', 'story'], yearsAhead = 3, randomRange = null, postsPerDay = null, dailyTimes = null } = await req.json().catch(() => ({}))
 
   const settings = await db.collection('social_settings').findOne({ accountId })
   if (!settings) return NextResponse.json({ ok: false, error: 'No settings found' }, { status: 400 })
@@ -111,21 +111,36 @@ export async function POST(req: NextRequest) {
     // Delete old scheduled (not yet posted) items for this type
     await db.collection('social_queue').deleteMany({ accountId, type, status: 'scheduled' })
 
-    // Build and insert new queue
-    const toInsert = postDates.map((pd, i) => {
-      const s = sequence[i % sequence.length]
-      const utcDt = toET(pd, time, rr?.enabled ? rr : undefined)
-      return {
-        accountId, type, status: 'scheduled',
-        scheduledDate: utcDt.toISOString(),
-        templateId: s.templateId,
-        templateName: s.templateName,
-        variationNum: s.variationNum,
-        videoUrl: s.videoUrl,
-        caption: s.caption,
-        createdAt: new Date().toISOString(),
+    // Posts per day — default 1. DB stores as postsPerDay, storysPerDay, reelsPerDay
+    // Frontend sends as storysPerDay etc (generated from template literal)
+    const ppdKey1 = `${type}sPerDay`
+    const ppdKey2 = type === 'story' ? 'storysPerDay' : ppdKey1
+    const perDay: number = (postsPerDay as number | null) || (settings[ppdKey1] as number) || (settings[ppdKey2] as number) || 1
+    const dtKey1 = `${type}DailyTimes`
+    const slotTimes: string[] = (dailyTimes as string[] | null) || (settings[dtKey1] as string[]) || [time]
+
+    // Build N items per day, advancing the sequence across slots too
+    const toInsert: Record<string, unknown>[] = []
+    let seqIdx = 0
+    for (const pd of postDates) {
+      for (let slot = 0; slot < perDay; slot++) {
+        const s = sequence[seqIdx % sequence.length]
+        // Determine time for this slot: use slotTimes[slot] if available, else random in range, else fallback
+        const slotTime = slotTimes[slot] || slotTimes[slotTimes.length - 1] || time
+        const utcDt = toET(pd, slotTime, rr?.enabled ? rr : undefined)
+        toInsert.push({
+          accountId, type, status: 'scheduled',
+          scheduledDate: utcDt.toISOString(),
+          templateId: s.templateId,
+          templateName: s.templateName,
+          variationNum: s.variationNum,
+          videoUrl: s.videoUrl,
+          caption: s.caption,
+          createdAt: new Date().toISOString(),
+        })
+        seqIdx++
       }
-    })
+    }
 
     if (toInsert.length) await db.collection('social_queue').insertMany(toInsert)
     results[type] = toInsert.length

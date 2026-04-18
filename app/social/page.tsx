@@ -44,6 +44,8 @@ export default function SocialPage() {
   const [postTimes, setPostTimes] = useState<Record<string,string>>(DEFAULT_TIMES)
   // Per-day times: { reel: { 1: '20:00', 3: '19:00', ... }, story: {...}, post: {...} }
   const [perDayTimes, setPerDayTimes] = useState<Record<string,Record<number,string>>>({reel:{},story:{},post:{}})
+  const [postsPerDay, setPostsPerDay] = useState<Record<string,number>>({reel:1, story:1, post:1})
+  const [dailyTimes, setDailyTimes] = useState<Record<string,string[]>>({reel:['20:00'], story:['09:00','13:00','19:00'], post:['21:00']})
   // Random range: { reel: { enabled: true, from: '18:00', to: '22:00' }, ... }
   const [randomRange, setRandomRange] = useState<Record<string,{enabled:boolean,from:string,to:string}>>({
     reel:{enabled:false,from:'18:00',to:'22:00'},
@@ -109,6 +111,11 @@ export default function SocialPage() {
     // DB stores as randomRange_post / randomRange_story / randomRange_reel
     const rrKey = `randomRange_${contentType}`
     if (s[rrKey]) setRandomRange(p=>({...p,[contentType]:s[rrKey]}))
+    // Load posts-per-day and daily times
+    const ppdKey = `${contentType}sPerDay`
+    const dtKey  = `${contentType}DailyTimes`
+    if (s[ppdKey]) setPostsPerDay(p=>({...p,[contentType]: s[ppdKey] as number}))
+    if (s[dtKey])  setDailyTimes(p=>({...p,[contentType]: s[dtKey] as string[]}))
   }, [selectedAccount, contentType])
 
   useEffect(()=>{ loadAll() },[])
@@ -203,11 +210,18 @@ export default function SocialPage() {
           reelTime:    contentType==='reel'  ? postTimes[contentType] : undefined,
           postTimezone:'America/New_York',
           [`randomRange_${contentType}`]: rr,
+        [`${contentType}sPerDay`]: postsPerDay[contentType] || 1,
+        [`${contentType}DailyTimes`]: dailyTimes[contentType] || [postTimes[contentType]],
         })})
       showToast('Generating schedule — don\'t refresh…', 'saving')
       // 2. Generate infinite queue
       const r = await fetch('/api/social/generate',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({accountId:selectedAccount, types:[contentType], yearsAhead:3, randomRange:randomRange[contentType]||null})})
+        body:JSON.stringify({
+          accountId:selectedAccount, types:[contentType], yearsAhead:3,
+          randomRange:randomRange[contentType]||null,
+          postsPerDay:postsPerDay[contentType]||1,
+          dailyTimes:dailyTimes[contentType]||[postTimes[contentType]],
+        })})
       const d = await r.json()
       const count = d.generated?.[contentType] || 0
       setSchedResult(d); setShowPreview(false)
@@ -433,6 +447,56 @@ export default function SocialPage() {
                               }} style={{fontSize:10,color:'var(--text-3)',background:'none',border:'none',cursor:'pointer',textAlign:'left',marginTop:2}}>
                                 Set all days to same time
                               </button>
+                            </div>
+                          )}
+                        </div>
+                        {/* Posts per day */}
+                        <div style={{marginBottom:12}}>
+                          <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:6}}>
+                            {contentType==='story'?'Stories':contentType==='reel'?'Reels':'Posts'} per day
+                          </div>
+                          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                            {[1,2,3,4,5].map(n=>(
+                              <button key={n} onClick={()=>{
+                                setPostsPerDay(p=>({...p,[contentType]:n}))
+                                // Auto-adjust dailyTimes array length
+                                setDailyTimes(p=>{
+                                  const cur = p[contentType]||[activeTime]
+                                  const next = [...cur]
+                                  while (next.length < n) next.push(cur[cur.length-1]||activeTime)
+                                  return {...p,[contentType]:next.slice(0,n)}
+                                })
+                              }}
+                                style={{width:36,height:36,borderRadius:8,fontSize:12,cursor:'pointer',fontWeight:600,
+                                  border:`2px solid ${(postsPerDay[contentType]||1)===n?'var(--accent)':'var(--border)'}`,
+                                  background:(postsPerDay[contentType]||1)===n?'rgba(91,79,233,0.1)':'var(--surface-2)',
+                                  color:(postsPerDay[contentType]||1)===n?'var(--accent)':'var(--text-3)'}}>
+                                {n}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Per-slot time pickers when >1 and random off */}
+                          {(postsPerDay[contentType]||1)>1 && !randomRange[contentType]?.enabled && (
+                            <div style={{display:'flex',flexDirection:'column',gap:5,marginTop:10}}>
+                              {Array.from({length:postsPerDay[contentType]||1}).map((_,idx)=>(
+                                <div key={idx} style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <div style={{width:56,fontSize:11,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>Slot {idx+1}</div>
+                                  <input type="time"
+                                    value={(dailyTimes[contentType]||[])[idx] || activeTime}
+                                    onChange={e=>{
+                                      const cur = [...(dailyTimes[contentType]||[])]
+                                      while(cur.length<=idx) cur.push(activeTime)
+                                      cur[idx] = e.target.value
+                                      setDailyTimes(p=>({...p,[contentType]:cur}))
+                                    }}
+                                    style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'5px 10px',fontSize:13,color:'var(--text)',outline:'none',fontFamily:'var(--font-dm-mono)'}}/>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {(postsPerDay[contentType]||1)>1 && randomRange[contentType]?.enabled && (
+                            <div style={{fontSize:10,color:'var(--text-3)',marginTop:6,fontStyle:'italic'}}>
+                              {postsPerDay[contentType]} posts randomly distributed in {randomRange[contentType].from}–{randomRange[contentType].to} range
                             </div>
                           )}
                         </div>
