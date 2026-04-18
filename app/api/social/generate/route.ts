@@ -142,9 +142,21 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let dayTemplates: any[]
       if (selectionMode === 'random_no_repeat') {
-        // Shuffle uniqTemplates and take first N (no duplicates within the day)
-        const shuffled = [...uniqTemplates].sort(() => Math.random() - 0.5)
-        dayTemplates = shuffled.slice(0, perDay)
+        // Respect conflict groups — templates in same group can't appear on same day
+        const conflictGroups: string[][] = (settings[`${type}ConflictGroups`] as string[][]) || []
+        let pool = [...uniqTemplates]
+        dayTemplates = []
+        while (dayTemplates.length < perDay && pool.length > 0) {
+          const pick = pool[Math.floor(Math.random() * pool.length)]
+          dayTemplates.push(pick)
+          // Remove picked template and any conflicting templates
+          const toRemove = new Set<string>([pick.name])
+          for (const group of conflictGroups) {
+            if (group.includes(pick.name)) group.forEach(n => toRemove.add(n))
+          }
+          pool = pool.filter(p => !toRemove.has(p.name))
+        }
+        // If pool ran out before we got perDay, fill with random (allowing dup with existing picks)
         while (dayTemplates.length < perDay) {
           dayTemplates.push(uniqTemplates[Math.floor(Math.random() * uniqTemplates.length)])
         }
