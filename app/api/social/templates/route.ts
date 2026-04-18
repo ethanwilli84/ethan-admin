@@ -14,6 +14,7 @@ export interface ContentTemplate {
   _id?: string
   accountId: string
   contentType: 'reel' | 'story' | 'post'
+  type?: string  // alias for contentType — used by generate route
   name: string          // "Template 1"
   caption: string       // same for all variations
   order: number         // 1–4 — determines interleave order
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   const contentType = req.nextUrl.searchParams.get('contentType')
   const filter: Record<string, unknown> = {}
   if (accountId) filter.accountId = accountId
-  if (contentType) filter.contentType = contentType
+  if (contentType) filter.$or = [{contentType},{type:contentType}]
   const templates = await db.collection<ContentTemplate>('social_templates')
     .find(filter).sort({ accountId: 1, contentType: 1, order: 1 }).toArray()
   return NextResponse.json({ ok: true, templates })
