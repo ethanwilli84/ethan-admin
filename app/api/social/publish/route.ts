@@ -5,9 +5,9 @@ import { getDb } from '@/lib/mongodb'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 
 const CREDS = {
-  pageToken:    process.env.META_PAGE_TOKEN!,
-  pageId:       process.env.META_PAGE_ID!,
-  igUserId:     process.env.META_IG_USER_ID!,
+  pageToken:    process.env.META_PAGE_TOKEN || 'EAALDZBoAESkMBRJXvTMZBH5nPtmNSdREZBkSx6NWPtGM7eYHbpiWPISFp0eVfrSdWwmrPXUrAz2heRYYUClNS5gG3IB2ZBqKMt5XBYQfLoWxCUBf3DazSzMbDlB6kZBvt01G3dEdZBUjOTsjbAUjujl5DgZAZB56uB2YoDxZCRJM37dfONIayU2jRspbduAMH4o3NHz1lYTCEP7ZAsUPrdfLsZD',
+  pageId:       process.env.META_PAGE_ID  || '162845390237140',
+  igUserId:     process.env.META_IG_USER_ID || '17841461321106563',
   spacesKey:    process.env.DO_SPACES_KEY!,
   spacesSecret: process.env.DO_SPACES_SECRET!,
   spacesBucket: process.env.DO_SPACES_BUCKET || 'ethan-social',
