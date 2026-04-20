@@ -29,8 +29,36 @@ export async function POST(req: NextRequest) {
     const contentType  = url.searchParams.get('contentType') || 'post'
     const filename     = url.searchParams.get('filename') || `upload_${Date.now()}.png`
 
-    const bytes = await req.arrayBuffer()
-    const buffer = Buffer.from(bytes)
+    let buffer = Buffer.from(await req.arrayBuffer())
+
+    // Auto-pad square images to 9:16 for stories (so IG doesn't fullscreen/zoom)
+    if (contentType === 'story') {
+      try {
+        // Dynamic import sharp only when needed
+        const sharp = (await import('sharp')).default
+        const meta = await sharp(buffer).metadata()
+        if (meta.width && meta.height && Math.abs(meta.width - meta.height) < 10) {
+          // Square image — pad to 1080x1920
+          const targetW = 1080, targetH = 1920
+          const scale = targetW / meta.width
+          const newH = Math.round(meta.height * scale)
+          const yOffset = Math.floor((targetH - newH) / 2)
+          buffer = await sharp(buffer)
+            .resize(targetW, newH)
+            .extend({
+              top: yOffset,
+              bottom: targetH - newH - yOffset,
+              left: 0, right: 0,
+              background: { r: 0, g: 0, b: 0, alpha: 1 }
+            })
+            .jpeg({ quality: 90 })
+            .toBuffer()
+          console.log(`Padded ${meta.width}x${meta.height} story to 1080x1920`)
+        }
+      } catch (padErr) {
+        console.warn('Story padding failed, using original:', padErr)
+      }
+    }
 
     const ext  = filename.split('.').pop()?.toLowerCase() || 'png'
     const ct   = ext === 'mp4' ? 'video/mp4' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png'
