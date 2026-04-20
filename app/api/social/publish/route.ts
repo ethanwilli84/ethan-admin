@@ -6,7 +6,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 
 const CREDS = {
   // Hardcoded — DO env var has old expired token, this is the never-expires one
-  pageToken:    'EAALDZBoAESkMBRJXvTMZBH5nPtmNSdREZBkSx6NWPtGM7eYHbpiWPISFp0eVfrSdWwmrPXUrAz2heRYYUClNS5gG3IB2ZBqKMt5XBYQfLoWxCUBf3DazSzMbDlB6kZBvt01G3dEdZBUjOTsjbAUjujl5DgZAZB56uB2YoDxZCRJM37dfONIayU2jRspbduAMH4o3NHz1lYTCEP7ZAsUPrdfLsZD',
+  pageToken:    'EAALDZBoAESkMBRbZAcTjGm0sgQO3Wt8m34zDkJYLSA8hijWRbqz0Csx2ZCm76b7g3P6vZB2Y9h021PBdOk8Nte1gmDPV63FZBzNn9WsvLYYPbZA2uwoA5NNEquS3NaPaGoVtLcyWmZAZC7UWxh0se9nsuERTFCeQ7FYEw4wbTSXkbdZCm1ywKXDjVWOtcpyvXMwP89YZAtJdqfwnAWQMx4sXsZD',
   pageId:       process.env.META_PAGE_ID  || '162845390237140',
   igUserId:     process.env.META_IG_USER_ID || '17841461321106563',
   spacesKey:    process.env.DO_SPACES_KEY!,
