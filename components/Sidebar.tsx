@@ -29,6 +29,7 @@ const NAV = [
       { label: 'Conversations', href: '/conversations', icon: '💬' },
       { label: 'AI Life OS', href: '/life-os', icon: '🧠' },
       { label: 'Social Queue', href: '/social', icon: '📸' },
+      { label: 'Meta Ads', href: '/ads', icon: '🎯' },
     ]
   },
   {

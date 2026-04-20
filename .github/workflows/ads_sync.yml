@@ -1,0 +1,24 @@
+name: Ads Metrics Sync
+
+on:
+  # Every hour — pulls the latest spend/clicks/conversions per ad
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Sync Meta ads metrics
+        run: |
+          echo "time=$(date -u)"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/ads/sync" \
+            -H "Content-Type: application/json" \
+            -d '{"accountId":"sire-ship"}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $HTTP_CODE: $BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1

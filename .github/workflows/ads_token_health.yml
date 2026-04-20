@@ -1,0 +1,20 @@
+name: Ads Token Health Check
+
+on:
+  # Every Monday at 9am UTC — refreshes token if expiring within 10 days
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check ads token and refresh if needed
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${{ secrets.ADMIN_URL }}/api/ads/health")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $HTTP_CODE: $BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1

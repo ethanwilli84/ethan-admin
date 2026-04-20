@@ -1,0 +1,29 @@
+name: Ads Auto-Optimization Rules
+
+on:
+  # Daily at 2am ET (7am UTC) — kills losers, scales winners
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'true = preview only'
+        default: 'false'
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Apply auto-optimization rules
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          echo "dry_run=$DRY_RUN time=$(date -u)"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/ads/rules" \
+            -H "Content-Type: application/json" \
+            -d "{\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "HTTP $HTTP_CODE: $BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1
