@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const contentType  = url.searchParams.get('contentType') || 'post'
     const filename     = url.searchParams.get('filename') || `upload_${Date.now()}.png`
 
-    let buffer = Buffer.from(await req.arrayBuffer())
+    let buffer: Buffer = Buffer.from(await req.arrayBuffer())
 
     // Auto-pad square images to 9:16 for stories (so IG doesn't fullscreen/zoom)
     if (contentType === 'story') {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
           const scale = targetW / meta.width
           const newH = Math.round(meta.height * scale)
           const yOffset = Math.floor((targetH - newH) / 2)
-          buffer = await sharp(buffer)
+          buffer = (await sharp(buffer)
             .resize(targetW, newH)
             .extend({
               top: yOffset,
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
               background: { r: 0, g: 0, b: 0, alpha: 1 }
             })
             .jpeg({ quality: 90 })
-            .toBuffer()
+            .toBuffer()) as Buffer
           console.log(`Padded ${meta.width}x${meta.height} story to 1080x1920`)
         }
       } catch (padErr) {
