@@ -36,6 +36,7 @@ const NAV = [
     section: 'Finance',
     items: [
       { label: 'Finance Monitor', href: '/finance', icon: '💰' },
+      { label: 'Investor Access', href: '/investor-access', icon: '🔐' },
     ]
   },
   {
