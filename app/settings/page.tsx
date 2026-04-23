@@ -125,7 +125,7 @@ export default function SettingsPage() {
           </div>
           <button className={config.globalPause ? 'btn-primary' : 'btn-ghost'} style={{background:config.globalPause?'var(--red)':undefined}}
             onClick={()=>setConfig(p=>p?{...p,globalPause:!p.globalPause}:p)}>
-            {config.globalPause ? '⏸ Paused — Click to Resume' : '⏸ Pause All'}
+            {config.globalPause ? 'Paused — Click to Resume' : 'Pause All'}
           </button>
         </div>
       </div>

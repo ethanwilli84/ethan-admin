@@ -80,7 +80,7 @@ export default function StatusPage() {
       {data && <>
         {/* Overall banner */}
         <div style={{ padding:'14px 20px', borderRadius:12, marginBottom:24, background: data.summary.allClear ? 'rgba(0,200,150,0.08)' : 'rgba(255,71,87,0.08)', border:`1.5px solid ${data.summary.allClear ? 'rgba(0,200,150,0.3)' : 'rgba(255,71,87,0.4)'}`, display:'flex', alignItems:'center', gap:12 }}>
-          <span style={{ fontSize:22 }}>{data.summary.allClear ? '✅' : '🚨'}</span>
+          <span style={{ fontSize:22 }}>{data.summary.allClear ? '✓' : '!'}</span>
           <div>
             <div style={{ fontWeight:700, fontSize:14, color: data.summary.allClear ? 'var(--green)' : 'var(--red)' }}>
               {data.summary.allClear ? 'All Systems Operational' : `${data.summary.criticalDown} Critical Service${data.summary.criticalDown !== 1 ? 's' : ''} Down`}
@@ -164,7 +164,7 @@ export default function StatusPage() {
                 const downServices = inc.results?.filter(r => r.status === 'down').map(r => r.id) || []
                 return (
                   <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, background:'rgba(255,71,87,0.06)', border:'1px solid rgba(255,71,87,0.15)' }}>
-                    <span style={{ fontSize:11 }}>🔴</span>
+                    <span style={{ fontSize:11 }}>●</span>
                     <span style={{ fontSize:12, color:'var(--text-2)', flex:1 }}>
                       {downServices.join(', ')} down
                     </span>
@@ -179,7 +179,7 @@ export default function StatusPage() {
         )}
         {incidents.length === 0 && history.length > 0 && (
           <div className="card" style={{ textAlign:'center', padding:20, color:'var(--text-3)', fontSize:12 }}>
-            ✅ No incidents in the last 24 hours
+            ✓ No incidents in the last 24 hours
           </div>
         )}
       </>}

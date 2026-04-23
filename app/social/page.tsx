@@ -9,12 +9,12 @@ interface BotLog { _id:string; type:string; accountId?:string; startedAt:string;
 interface PreviewItem { templateName:string; variationNum:number; caption:string; scheduledDate:string; type:string; cycleNum:number }
 
 const CONTENT_TYPES = [
-  { id:'reel',  label:'Reels',      icon:'🎬', accept:'video/*',          hint:'Mon · Wed · Thu · Sun · 4/week' },
-  { id:'story', label:'Stories',    icon:'📸', accept:'video/*,image/*',  hint:'Daily · restarts after 80' },
-  { id:'post',  label:'Feed Posts', icon:'🖼',  accept:'video/*,image/*',  hint:'Mon · Wed · Thu · Sun · 4/week' },
+  { id:'reel',  label:'Reels',      icon:'', accept:'video/*',          hint:'Mon · Wed · Thu · Sun · 4/week' },
+  { id:'story', label:'Stories',    icon:'', accept:'video/*,image/*',  hint:'Daily · restarts after 80' },
+  { id:'post',  label:'Feed Posts', icon:'',  accept:'video/*,image/*',  hint:'Mon · Wed · Thu · Sun · 4/week' },
 ]
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const STATUS_COLOR:Record<string,string> = { scheduled:'#5B4FE9',posted:'#00C896',failed:'#ef4444',running:'#f59e0b',success:'#00C896',partial:'#f59e0b' }
+const STATUS_COLOR:Record<string,string> = { scheduled:'var(--accent)',posted:'#00C896',failed:'#ef4444',running:'#f59e0b',success:'#00C896',partial:'#f59e0b' }
 const DEFAULT_DAYS:Record<string,number[]> = { reel:[1,3,4,0], story:[0,1,2,3,4,5,6], post:[1,3,4,0] }
 const DEFAULT_TIMES:Record<string,string> = { reel:'20:00', story:'09:00', post:'21:00' }
 
@@ -287,7 +287,7 @@ export default function SocialPage() {
           <div onClick={e=>e.stopPropagation()} style={{maxWidth:900,maxHeight:'90vh',background:'var(--surface)',borderRadius:14,overflow:'hidden',display:'flex',flexDirection:'column',cursor:'default'}}>
             <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div>
-                <div style={{fontWeight:700,fontSize:14}}>{previewImg.type==='story'?'📖':previewImg.type==='reel'?'🎬':'📸'} {previewImg.name}</div>
+                <div style={{fontWeight:700,fontSize:14}}>{previewImg.type==='story'?'':previewImg.type==='reel'?'':''} {previewImg.name}</div>
                 <div style={{fontSize:11,color:'var(--text-3)',marginTop:2,fontFamily:'var(--font-dm-mono)'}}>{previewImg.time} ET</div>
               </div>
               <button onClick={()=>setPreviewImg(null)} style={{background:'none',border:'none',fontSize:24,cursor:'pointer',color:'var(--text-3)',lineHeight:1}}>×</button>
@@ -324,7 +324,7 @@ export default function SocialPage() {
                     const dt = new Date(item.scheduledDate)
                     const isNew = i>0 && ((item as unknown) as {cycleNum:number}).cycleNum > ((previewItems[i-1] as unknown) as {cycleNum:number}).cycleNum
                     return (
-                      <tr key={i} style={{borderBottom:'1px solid var(--border)',background:isNew?'rgba(91,79,233,0.04)':'transparent'}}>
+                      <tr key={i} style={{borderBottom:'1px solid var(--border)',background:isNew?'var(--surface-2)':'transparent'}}>
                         <td style={{padding:'8px 14px',color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',width:36}}>{i+1}</td>
                         <td style={{padding:'8px 14px',fontWeight:500}}>{item.templateName}</td>
                         <td style={{padding:'8px 14px',fontFamily:'var(--font-dm-mono)',color:'var(--accent)'}}>V{item.variationNum}</td>
@@ -332,7 +332,7 @@ export default function SocialPage() {
                         <td style={{padding:'8px 14px',color:'var(--text-3)'}}>{DAY_LABELS[dt.getDay()]}</td>
                         <td style={{padding:'8px 14px',fontFamily:'var(--font-dm-mono)',color:'var(--text-3)'}}>{dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
                         <td style={{padding:'8px 14px'}}>
-                          {isNew && <span style={{fontSize:9,background:'rgba(91,79,233,0.15)',color:'var(--accent)',borderRadius:8,padding:'2px 6px'}}>new cycle</span>}
+                          {isNew && <span style={{fontSize:9,background:'var(--border)',color:'var(--accent)',borderRadius:8,padding:'2px 6px'}}>new cycle</span>}
                           {!isNew && <span style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)'}}>{(item as unknown as {cycleNum:number}).cycleNum}</span>}
                         </td>
                       </tr>
@@ -363,7 +363,7 @@ export default function SocialPage() {
         <div style={{display:'flex',gap:8}}>
           {(['templates','queue','calendar','logs','accounts'] as const).map(t=>(
             <button key={t} onClick={()=>setTab(t)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:'1px solid var(--border)',background:tab===t?'var(--accent)':'var(--surface-2)',color:tab===t?'#fff':'var(--text-2)'}}>
-              {t==='templates'?'🎞 Templates':t==='queue'?`📅 Queue (${queueTotal||queue.filter(i=>i.accountId===selectedAccount).length})`:t==='calendar'?'📆 Calendar':t==='logs'?'🤖 Logs':'⚙ Accounts'}
+              {t==='templates'?'Templates':t==='queue'?`Queue (${queueTotal||queue.filter(i=>i.accountId===selectedAccount).length})`:t==='calendar'?'Calendar':t==='logs'?'Logs':'Accounts'}
             </button>
           ))}
         </div>
@@ -374,7 +374,7 @@ export default function SocialPage() {
         {(tab==='templates'||tab==='queue')&&accounts.length>0&&(
           <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
             {accounts.map(a=>(
-              <button key={a.id} onClick={()=>setSelectedAccount(a.id)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:`2px solid ${selectedAccount===a.id?'var(--accent)':'var(--border)'}`,background:selectedAccount===a.id?'rgba(91,79,233,0.08)':'var(--surface-2)',color:selectedAccount===a.id?'var(--accent)':'var(--text-2)',fontWeight:selectedAccount===a.id?700:400}}>
+              <button key={a.id} onClick={()=>setSelectedAccount(a.id)} style={{padding:'6px 14px',borderRadius:20,fontSize:12,cursor:'pointer',border:`2px solid ${selectedAccount===a.id?'var(--accent)':'var(--border)'}`,background:selectedAccount===a.id?'var(--surface-2)':'var(--surface-2)',color:selectedAccount===a.id?'var(--accent)':'var(--text-2)',fontWeight:selectedAccount===a.id?700:400}}>
                 {a.name}{a.igHandle&&<span style={{fontWeight:400,fontSize:11,color:'var(--text-3)',marginLeft:4}}>{a.igHandle}</span>}
               </button>
             ))}
@@ -419,7 +419,7 @@ export default function SocialPage() {
                           <div style={{fontSize:10,color:'var(--text-3)',fontFamily:'var(--font-dm-mono)',textTransform:'uppercase',marginBottom:6}}>Post days</div>
                           <div style={{display:'flex',gap:5}}>
                             {DAY_LABELS.map((d,i)=>(
-                              <button key={i} onClick={()=>toggleDay(i)} style={{width:40,height:36,borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:activeDays.includes(i)?700:400,border:`2px solid ${activeDays.includes(i)?'var(--accent)':'var(--border)'}`,background:activeDays.includes(i)?'rgba(91,79,233,0.1)':'var(--surface-2)',color:activeDays.includes(i)?'var(--accent)':'var(--text-3)'}}>
+                              <button key={i} onClick={()=>toggleDay(i)} style={{width:40,height:36,borderRadius:8,fontSize:11,cursor:'pointer',fontWeight:activeDays.includes(i)?700:400,border:`2px solid ${activeDays.includes(i)?'var(--accent)':'var(--border)'}`,background:activeDays.includes(i)?'var(--surface-2)':'var(--surface-2)',color:activeDays.includes(i)?'var(--accent)':'var(--text-3)'}}>
                                 {d}
                               </button>
                             ))}
@@ -488,7 +488,7 @@ export default function SocialPage() {
                               }}
                                 style={{width:36,height:36,borderRadius:8,fontSize:12,cursor:'pointer',fontWeight:600,
                                   border:`2px solid ${(postsPerDay[contentType]||1)===n?'var(--accent)':'var(--border)'}`,
-                                  background:(postsPerDay[contentType]||1)===n?'rgba(91,79,233,0.1)':'var(--surface-2)',
+                                  background:(postsPerDay[contentType]||1)===n?'var(--surface-2)':'var(--surface-2)',
                                   color:(postsPerDay[contentType]||1)===n?'var(--accent)':'var(--text-3)'}}>
                                 {n}
                               </button>
@@ -698,7 +698,7 @@ export default function SocialPage() {
                       const dt=new Date(item.scheduledDate)
                       return (
                         <tr key={item._id} style={{borderBottom:'1px solid var(--border)'}}>
-                          <td style={{padding:'6px 10px',fontSize:15}}>{item.type==='reel'?'🎬':item.type==='story'?'📸':'🖼'}</td>
+                          <td style={{padding:'6px 10px',fontSize:15}}>{item.type==='reel'?'':item.type==='story'?'':''}</td>
                           <td style={{padding:'6px 10px',maxWidth:130}}><div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:500,fontSize:11}}>{item.templateName||item.title}</div></td>
                           <td style={{padding:'6px 10px',fontFamily:'var(--font-dm-mono)',color:'var(--accent)',fontSize:11}}>V{item.variationNum||'?'}</td>
                           <td style={{padding:'6px 10px',fontFamily:'var(--font-dm-mono)',fontSize:11}}>{dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</td>
@@ -729,7 +729,7 @@ export default function SocialPage() {
                 <div key={log._id} className="card" style={{marginBottom:10}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:14}}>{log.type==='reel'?'🎬':log.type==='story'?'📸':'📦'}</span>
+                      <span style={{fontSize:14}}>{log.type==='reel'?'':log.type==='story'?'':''}</span>
                       <div>
                         <div style={{display:'flex',alignItems:'center',gap:8}}>
                           <span style={{fontWeight:600,fontSize:13,textTransform:'capitalize'}}>{log.type} · {accounts.find(a=>a.id===log.accountId)?.name||log.accountId||'batch'}</span>
@@ -875,7 +875,7 @@ export default function SocialPage() {
                         const borderCol = isPosted?'#22c55e':(typeColor[item.type as string]||'#6366f1')
                         const time = new Date(item.scheduledDate as string).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})
                         const url = item.videoUrl as string
-                        const typeIcon = item.type==='story'?'📖':item.type==='reel'?'🎬':'📸'
+                        const typeIcon = item.type==='story'?'':item.type==='reel'?'':''
                         return (
                           <div key={idx} onClick={()=>setPreviewImg({url,name:`${item.templateName} V${item.variationNum}`,time,type:item.type as string})}
                             title={`${typeIcon} ${item.templateName} V${item.variationNum} · ${time}`}

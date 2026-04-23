@@ -142,7 +142,7 @@ export default function ProjectsPage() {
                   </div>
 
                   {p.editInstructions && (
-                    <div style={{ background: 'rgba(91,79,233,0.06)', border: '1px solid rgba(91,79,233,0.2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                    <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                       <div style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--font-dm-mono)', textTransform: 'uppercase', marginBottom: 6 }}>How to Edit & Deploy</div>
                       <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{p.editInstructions}</div>
                     </div>

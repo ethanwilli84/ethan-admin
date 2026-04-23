@@ -218,12 +218,12 @@ export default function AdsPage() {
 
   // ─────────────────────── RENDER ───────────────────────
   const TABS: { id: Tab; label: string; icon: string }[] = [
-    { id: 'launch',    label: 'Launch',    icon: '🚀' },
-    { id: 'creatives', label: 'Creatives', icon: '🎨' },
-    { id: 'campaigns', label: 'Campaigns', icon: '📊' },
+    { id: 'launch',    label: 'Launch',    icon: '' },
+    { id: 'creatives', label: 'Creatives', icon: '' },
+    { id: 'campaigns', label: 'Campaigns', icon: '' },
     { id: 'metrics',   label: 'Metrics',   icon: '📈' },
     { id: 'rules',     label: 'Rules',     icon: '⚙️' },
-    { id: 'events',    label: 'Events',    icon: '🔔' },
+    { id: 'events',    label: 'Events',    icon: '' },
   ]
 
   return (
@@ -459,7 +459,7 @@ export default function AdsPage() {
                 <div style={{display:'flex', gap:6}}>
                   <button onClick={()=>setCampaignStatus(c.metaId, c.status==='ACTIVE'?'PAUSED':'ACTIVE')}
                     style={{padding:'6px 12px', background: c.status==='ACTIVE'?'rgba(239,68,68,0.15)':'rgba(34,197,94,0.15)', color: c.status==='ACTIVE'?'#ef4444':'#22c55e', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600}}>
-                    {c.status==='ACTIVE'?'⏸ Pause':'▶ Activate'}
+                    {c.status==='ACTIVE'?'Pause':'▶ Activate'}
                   </button>
                 </div>
               </div>

@@ -14,7 +14,7 @@ const CHANNEL_ICON: Record<string,string> = { imessage:'💬', slack:'#', email_
 const CHANNEL_LABEL: Record<string,string> = { imessage:'iMessage', slack:'Slack', email_sire:'Email (Sire)', email_sireapps:'Email (SireApps)', whatsapp:'WhatsApp', google_voice:'Google Voice' }
 const SEV_COLOR: Record<string,string> = { critical:'#FF4757', high:'#ff7043', medium:'#f59e0b', low:'var(--green)' }
 const SEV_BG: Record<string,string> = { critical:'rgba(255,71,87,0.1)', high:'rgba(255,112,67,0.1)', medium:'rgba(245,158,11,0.08)', low:'rgba(0,200,150,0.08)' }
-const PRODUCT_COLOR: Record<string,string> = { sire:'#00D4FF', alpine:'#5B4FE9', both:'#7B6FF0', unknown:'var(--text-3)' }
+const PRODUCT_COLOR: Record<string,string> = { sire:'var(--accent-2)', alpine:'var(--accent)', both:'var(--accent-2)', unknown:'var(--text-3)' }
 
 export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([])
@@ -82,7 +82,7 @@ export default function IssuesPage() {
           <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:22, marginTop:4, display:'flex', alignItems:'center', gap:10 }}>
             Issues
             {openCount > 0 && <span style={{ fontSize:12, background:'var(--red)', color:'#fff', borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', fontWeight:600 }}>{openCount} open</span>}
-            {criticalOpen > 0 && <span style={{ fontSize:11, background:'rgba(255,71,87,0.15)', color:'var(--red)', borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', border:'1px solid rgba(255,71,87,0.3)' }}>🚨 {criticalOpen} critical</span>}
+            {criticalOpen > 0 && <span style={{ fontSize:11, background:'rgba(255,71,87,0.15)', color:'var(--red)', borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', border:'1px solid rgba(255,71,87,0.3)' }}>! {criticalOpen} critical</span>}
           </div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -101,7 +101,7 @@ export default function IssuesPage() {
           <button key={val} className={statusFilter===val?'chip active':'chip'} onClick={()=>setStatusFilter(val)}>{label}{val==='open'&&countMap['open']?` (${countMap['open']})`:''}</button>
         ))}
         <div style={{ width:1, background:'var(--border)', margin:'0 4px' }}/>
-        {[['all','All Channels'], ['imessage','💬 iMessage'], ['slack','# Slack'], ['email_sire','📧 Email']].map(([val,label]) => (
+        {[['all','All Channels'], ['imessage','iMessage'], ['slack','Slack'], ['email_sire','Email']].map(([val,label]) => (
           <button key={val} className={channelFilter===val?'chip active':'chip'} style={{fontSize:11}} onClick={()=>setChannelFilter(val)}>{label}</button>
         ))}
         <div style={{ width:1, background:'var(--border)', margin:'0 4px' }}/>
@@ -123,7 +123,7 @@ export default function IssuesPage() {
           {loading && <div style={{ textAlign:'center', padding:40, color:'var(--text-3)', fontFamily:'var(--font-dm-mono)', fontSize:12 }}>◌ Loading...</div>}
           {!loading && issues.length === 0 && (
             <div className="card" style={{ textAlign:'center', padding:40, color:'var(--text-3)' }}>
-              <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
+              <div style={{ fontSize:32, marginBottom:8 }}>✓</div>
               <div style={{ fontSize:14, fontWeight:600 }}>No {statusFilter} issues</div>
               <div style={{ fontSize:12, marginTop:4 }}>Hit "Sync All Channels" to check for new issues</div>
             </div>

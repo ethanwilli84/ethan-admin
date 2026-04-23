@@ -169,7 +169,7 @@ export default function Home() {
         {chatOpen && (
           <div className="card fade-up" style={{marginBottom:16}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <span className="section-label">🤖 Ask AI about your campaigns</span>
+              <span className="section-label">Ask AI about your campaigns</span>
               <div style={{display:'flex',gap:8}}>
                 {chatHistory.length > 0 && <button onClick={()=>setChatHistory([])} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:11}}>Clear</button>}
                 <button onClick={()=>setChatOpen(false)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13}}>✕</button>
@@ -178,7 +178,7 @@ export default function Home() {
             <div ref={chatRef} style={{height:220,overflowY:'auto',marginBottom:10,display:'flex',flexDirection:'column',gap:8,padding:'4px 0'}}>
               {chatHistory.length === 0 && (
                 <div style={{color:'var(--text-3)',fontSize:12,textAlign:'center',padding:'40px 0'}}>
-                  <div style={{fontSize:20,marginBottom:6}}>🤖</div>
+                  <div style={{fontSize:20,marginBottom:6}}></div>
                   <div>Ask me anything about what&apos;s running right now</div>
                   <div style={{display:'flex',gap:6,justifyContent:'center',marginTop:10,flexWrap:'wrap'}}>
                     {["What's running right now?","Did everything send today?","Why is BNPL not hitting its limit?","When does the next run start?"].map(q => (
@@ -192,8 +192,8 @@ export default function Home() {
               {chatHistory.map((m, i) => (
                 <div key={i} style={{
                   padding:'8px 12px',borderRadius:10,maxWidth:'85%',fontSize:13,lineHeight:1.6,
-                  background: m.role==='user' ? 'rgba(91,79,233,0.12)' : 'var(--surface-2)',
-                  border: m.role==='user' ? '1px solid rgba(91,79,233,0.2)' : '1px solid var(--border)',
+                  background: m.role==='user' ? 'var(--surface-2)' : 'var(--surface-2)',
+                  border: m.role==='user' ? '1px solid var(--border)' : '1px solid var(--border)',
                   alignSelf: m.role==='user' ? 'flex-end' : 'flex-start',
                   whiteSpace: 'pre-wrap',
                 }}>
@@ -272,11 +272,11 @@ export default function Home() {
         {/* New campaign creator */}
         {showCreator&&(
           <div className="creator-card fade-up">
-            <div style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:16,marginBottom:4}}>✦ AI Campaign Generator</div>
+            <div style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:16,marginBottom:4}}>AI Campaign Generator</div>
             <div style={{color:'var(--text-3)',fontSize:13,marginBottom:16}}>Describe your objective — AI configures everything.</div>
             <textarea className="creator-textarea" placeholder="e.g. I want to get on fintech podcasts to promote Alpine, my BNPL platform for coaching sellers." value={objective} onChange={e=>setObjective(e.target.value)}/>
             <div style={{display:'flex',gap:8,marginTop:10,marginBottom:generated?20:0}}>
-              <button className="btn-primary" onClick={generate} disabled={generating||!objective.trim()}>{generating?'◌ Generating...':'✦ Generate Campaign'}</button>
+              <button className="btn-primary" onClick={generate} disabled={generating||!objective.trim()}>{generating?'◌ Generating...':'Generate Campaign'}</button>
               <button className="btn-ghost" onClick={()=>{setShowCreator(false);setGenerated(null);setObjective('')}}>Cancel</button>
             </div>
             {generated&&(

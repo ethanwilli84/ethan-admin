@@ -82,7 +82,7 @@ export default function InvestorAccessPage() {
                     borderRadius: 6,
                     fontSize: 11,
                     fontWeight: 600,
-                    background: log.portal?.includes('invest.') ? 'rgba(34,197,94,0.12)' : 'rgba(91,79,233,0.12)',
+                    background: log.portal?.includes('invest.') ? 'rgba(34,197,94,0.12)' : 'var(--surface-2)',
                     color: log.portal?.includes('invest.') ? '#22c55e' : 'var(--accent)',
                   }}>
                     {log.portal?.includes('invest.') ? 'invest' : 'investor'}

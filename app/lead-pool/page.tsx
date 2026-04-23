@@ -49,7 +49,7 @@ export default function LeadPoolPage() {
   async function autoDiscover() {
     if (!campaignFilter) return
     setIngesting(true)
-    setIngestLog(['🤖 AI analyzing campaign for best lead sources...'])
+    setIngestLog(['AI analyzing campaign for best lead sources...'])
     const camp = campaigns.find(c => c.slug === campaignFilter)
     const res = await fetch('/api/lead-discover', {
       method: 'POST',
@@ -99,7 +99,7 @@ export default function LeadPoolPage() {
     if (!csvSource) setCsvSource(file.name.replace('.csv', ''))
   }
 
-  const STATUS_COLOR: Record<string, string> = { pending: '#5B4FE9', contacted: '#f59e0b', replied: '#00C896', converted: '#00C896', skip: '#666' }
+  const STATUS_COLOR: Record<string, string> = { pending: 'var(--accent)', contacted: '#f59e0b', replied: '#00C896', converted: '#00C896', skip: '#666' }
   const selectedCampName = campaigns.find(c => c.slug === campaignFilter)?.name || campaignFilter
 
   return (
@@ -144,7 +144,7 @@ export default function LeadPoolPage() {
           {(['ingest', 'csv', 'pool'] as const).map(t => (
             <button key={t} onClick={() => setActiveTab(t)}
               style={{ padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: '1px solid var(--border)', background: activeTab === t ? 'var(--accent)' : 'var(--surface-2)', color: activeTab === t ? '#fff' : 'var(--text-2)' }}>
-              {t === 'pool' ? '🗂 Browse Pool' : t === 'ingest' ? '⚡ Fetch Sources' : '📤 CSV Upload'}
+              {t === 'pool' ? 'Browse Pool' : t === 'ingest' ? 'Fetch Sources' : 'CSV Upload'}
             </button>
           ))}
         </div>
@@ -153,8 +153,8 @@ export default function LeadPoolPage() {
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 16 }}>Pull structured leads from free databases — replaces Claude web research with deterministic data sources.</div>
 
-            <div style={{ marginBottom: 16, background: 'rgba(91,79,233,0.08)', borderRadius: 10, padding: 14, border: '1px solid rgba(91,79,233,0.2)' }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>🤖 Auto-Discover (recommended)</div>
+            <div style={{ marginBottom: 16, background: 'var(--surface-2)', borderRadius: 10, padding: 14, border: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Auto-Discover (recommended)</div>
               <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 10 }}>AI picks the best free databases for your campaign, runs them in priority order. Automatically uses iTunes for podcasts, FDIC for banking, SEC/GLEIF for investors.</div>
               <button className="btn-primary" style={{ fontSize: 12 }} disabled={ingesting || !campaignFilter} onClick={autoDiscover}>
                 {ingesting ? '◌ Discovering...' : campaignFilter ? ('Auto-Discover for ' + selectedCampName) : 'Select a campaign above first'}
