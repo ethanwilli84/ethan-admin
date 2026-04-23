@@ -134,6 +134,27 @@ export async function POST(req: NextRequest) {
     projection: { _id: 1, phone: 1, email: 1 },
   }).toArray()) as unknown as SireUser[]
 
+  // Rate-checked-but-never-shipped (retargeting pool)
+  // Aggregates from shipmentsessionrates collection — source of truth rather
+  // than the cached `askedRateButNeverBought` flag (which lags).
+  // These users signed up AND engaged (checked rates) but never converted.
+  const rateCheckerAgg = await sireDb
+    .collection('shipmentsessionrates')
+    .aggregate([{ $group: { _id: '$owner' } }])
+    .toArray()
+  const rateCheckerIds = rateCheckerAgg.map((r) => r._id)
+  const shipperStringSet = new Set(allMerchantOwnerIds.map((id) => String(id)))
+  const nonShipperRateCheckerIds = rateCheckerIds
+    .filter((id) => !shipperStringSet.has(String(id)))
+  const rateCheckNoPurchaseUsers = (await sireDb.collection('users').find({
+    _id: { $in: nonShipperRateCheckerIds as ObjectId[] },
+    phone: { $exists: true, $nin: [null, ''] },
+    isDemo: { $ne: true },
+    isAPI: { $ne: true },
+  }, {
+    projection: { _id: 1, phone: 1, email: 1 },
+  }).toArray()) as unknown as SireUser[]
+
   // ---- Step 4: push to Meta --------------------------------------------
   const seeds = [
     {
@@ -155,6 +176,11 @@ export async function POST(req: NextRequest) {
       name: 'sire_historical_ad_converters',
       description: `Past users whose referral or knowUs indicates they came from Meta ads. Built ${startedAt.toISOString()}.`,
       users: adConverterUsers.map((u) => ({ phone: u.phone, email: u.email })),
+    },
+    {
+      name: 'sire_ratecheck_no_purchase',
+      description: `Users who checked rates (have shipmentSessionRates) but never shipped. Retargeting pool. Built ${startedAt.toISOString()}.`,
+      users: rateCheckNoPurchaseUsers.map((u) => ({ phone: u.phone, email: u.email })),
     },
     {
       name: 'sire_all_merchants_EXCLUSION',
@@ -212,6 +238,7 @@ export async function POST(req: NextRequest) {
     shipStatsCount: shipStats.length,
     enrichedCount: enriched.length,
     active21dCount: active21d.length,
+    rateCheckNoPurchaseCount: rateCheckNoPurchaseUsers.length,
     seeds: results,
   }
   await ethanDb.collection('ads_audience_runs').insertOne(runDoc)
