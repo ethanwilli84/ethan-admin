@@ -1,11 +1,31 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { Terminal, X, Paperclip, ArrowUp, ExternalLink } from 'lucide-react'
 
 interface ChatMsg { role: 'user'|'assistant'; content: string; image?: string }
 interface ToolCall { name: string; tool: string; status: 'running'|'done'|'error'; step?: number }
 
 const CLAUDE_CHAT_URL = 'https://claude.ai/chat/d077d338-25af-4a74-b5ea-abfbf5bc5ab8'
 const STORAGE_KEY = 'dev-panel-msgs-v2'
+
+// ─── Monochrome palette for the dev console.
+// Dark theme is kept because it reads as a "terminal/agent" surface,
+// but all purple/cyan has been swapped for neutral charcoal tones.
+const C = {
+  bg:       '#0e0e0e',
+  bgHover:  '#141414',
+  panel:    '#171717',
+  panelAlt: '#1c1c1c',
+  border:   '#262626',
+  borderHi: '#353535',
+  text:     '#e4e4e4',
+  textDim:  '#9a9a9a',
+  textMore: '#6a6a6a',
+  textFaint:'#4a4a4a',
+  accent:   '#ffffff',
+  success:  '#16a34a',
+  error:    '#dc2626',
+}
 
 export default function DevPanel() {
   const [open, setOpen] = useState(false)
@@ -22,7 +42,6 @@ export default function DevPanel() {
   const endRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Persist history
   useEffect(() => {
     try { const s = localStorage.getItem(STORAGE_KEY); if (s) setMsgs(JSON.parse(s)) } catch {}
   }, [])
@@ -137,69 +156,108 @@ export default function DevPanel() {
 
   return (
     <>
+      {/* Floating button to open the console */}
       {!open && (
-        <button onClick={() => setOpen(true)} title={msgs.length > 0 ? `Dev Agent (${msgs.length} msgs)` : 'Dev Agent'} style={{
-          position: 'fixed', bottom: 28, right: 28, zIndex: 1000,
-          width: 48, height: 48, borderRadius: '50%',
-          background: msgs.length > 0 ? 'linear-gradient(135deg,#3a3aaa,#5B4FE9)' : 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
-          border: msgs.length > 0 ? '2px solid #7B6FF0' : 'none',
-          color: '#fff', fontSize: 18, cursor: 'pointer',
-          boxShadow: '0 4px 24px rgba(91,79,233,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>⌨</button>
+        <button
+          onClick={() => setOpen(true)}
+          title={msgs.length > 0 ? `Dev Agent (${msgs.length} msgs)` : 'Dev Agent'}
+          style={{
+            position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
+            width: 44, height: 44, borderRadius: '50%',
+            background: C.accent,
+            color: '#000',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25), 0 6px 24px rgba(0,0,0,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid rgba(0,0,0,0.08)',
+          }}
+        >
+          <Terminal size={18} strokeWidth={2} />
+        </button>
       )}
 
       {/* Side panel */}
-      <div ref={panelRef} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+      <div
+        ref={panelRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0,
           width: open ? 420 : 0, overflow: 'hidden',
-          background: dragging ? '#0f0f38' : '#080818',
-          borderLeft: dragging ? '2px solid #7B6FF0' : '1px solid #1a1a3e',
+          background: dragging ? C.panel : C.bg,
+          borderLeft: dragging ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
           zIndex: 999, transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
           display: 'flex', flexDirection: 'column',
-        }}>
+          fontFamily: 'var(--font-sans)',
+        }}
+      >
         {open && (
           <>
             {dragging && (
-              <div style={{ position:'absolute', inset:0, zIndex:10, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(91,79,233,0.15)', pointerEvents:'none' }}>
-                <div style={{ textAlign:'center', color:'#a0a0ff', fontSize:14, fontWeight:600 }}>
-                  <div style={{ fontSize:32, marginBottom:8 }}>📎</div>
-                  Drop screenshot here
+              <div style={{ position:'absolute', inset:0, zIndex:10, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(255,255,255,0.04)', pointerEvents:'none' }}>
+                <div style={{ textAlign:'center', color:C.text, fontSize:13, fontWeight:500 }}>
+                  <Paperclip size={28} style={{ marginBottom:8, opacity:0.6 }} />
+                  <div>Drop screenshot here</div>
                 </div>
               </div>
             )}
 
             {/* Header */}
-            <div style={{ padding:'16px 18px 12px', borderBottom:'1px solid #1a1a3e', flexShrink:0 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:14, color:'#a0a0ff' }}>
-                  ⌨ Dev Agent
-                  {msgs.length > 0 && <span style={{ fontSize:10, marginLeft:8, color:'#5555aa', fontWeight:400 }}>{msgs.length} msgs · saved</span>}
+            <div style={{ padding:'14px 16px 12px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, color:C.text, fontSize:13, fontWeight:500 }}>
+                  <Terminal size={14} strokeWidth={2} />
+                  <span>Dev Agent</span>
+                  {msgs.length > 0 && (
+                    <span style={{ fontSize:10, marginLeft:4, color:C.textMore, fontWeight:400 }}>
+                      {msgs.length} msgs
+                    </span>
+                  )}
                 </div>
                 <div style={{ display:'flex', gap:6 }}>
-                  <button onClick={clearHistory} style={{ background:'none', border:'1px solid #2a2a4e', borderRadius:6, color:'#5555aa', fontSize:10, padding:'3px 8px', cursor:'pointer' }}>Clear</button>
-                  <button onClick={() => setOpen(false)} style={{ background:'#1a1a3e', border:'1px solid #3a3a6e', borderRadius:8, color:'#9999cc', fontSize:14, cursor:'pointer', width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+                  <button
+                    onClick={clearHistory}
+                    style={{ border:`1px solid ${C.border}`, borderRadius:4, color:C.textMore, fontSize:10, padding:'3px 8px', cursor:'pointer' }}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setOpen(false)}
+                    style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, color:C.textDim, cursor:'pointer', width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center' }}
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </button>
                 </div>
               </div>
-              <a href={CLAUDE_CHAT_URL} target="_blank" rel="noopener noreferrer"
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:8, background:'#0f0f28', border:'1px solid #2a2a4e', color:'#5566bb', fontSize:11, textDecoration:'none', fontFamily:'var(--font-dm-mono)' }}>
-                <span>✦ Open Claude chat (project knowledge)</span>
-                <span style={{ marginLeft:'auto' }}>↗</span>
+              <a
+                href={CLAUDE_CHAT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:6, background:C.panel, border:`1px solid ${C.border}`, color:C.textDim, fontSize:11, textDecoration:'none', fontFamily:'var(--font-mono)' }}
+              >
+                <span>Open Claude chat (project knowledge)</span>
+                <ExternalLink size={11} style={{ marginLeft:'auto' }} />
               </a>
             </div>
 
             {/* Messages */}
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
               {msgs.length === 0 && (
-                <div style={{ padding:24, textAlign:'center', color:'#4444aa', fontSize:12, lineHeight:1.7 }}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>⌨</div>
-                  <div style={{ color:'#7777bb', fontWeight:600, marginBottom:6 }}>Dev Agent</div>
+                <div style={{ padding:24, textAlign:'center', color:C.textMore, fontSize:12, lineHeight:1.7 }}>
+                  <Terminal size={24} strokeWidth={1.5} style={{ margin:'0 auto 10px', color:C.textDim }} />
+                  <div style={{ color:C.text, fontWeight:500, marginBottom:6 }}>Dev Agent</div>
                   Reads/writes GitHub files, commits, auto-deploys.
-                  <div style={{ marginTop:8, fontSize:11, color:'#3333aa' }}>📎 Drop a screenshot or paste ⌘V</div>
+                  <div style={{ marginTop:10, fontSize:11, color:C.textFaint }}>Drop a screenshot or paste ⌘V</div>
                   <div style={{ marginTop:12, display:'flex', flexWrap:'wrap', gap:6, justifyContent:'center' }}>
                     {['Add a feature','Fix a bug','Show me the code','Change the styling'].map(s => (
-                      <button key={s} onClick={() => setInput(s)} style={{ background:'#1a1a3e', border:'1px solid #2a2a4e', borderRadius:20, color:'#6677cc', fontSize:10, padding:'4px 10px', cursor:'pointer' }}>{s}</button>
+                      <button
+                        key={s}
+                        onClick={() => setInput(s)}
+                        style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:16, color:C.textDim, fontSize:11, padding:'4px 10px', cursor:'pointer' }}
+                      >
+                        {s}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -207,60 +265,68 @@ export default function DevPanel() {
 
               {msgs.map((m, i) => (
                 <div key={i} style={{ display:'flex', flexDirection:'column', alignItems: m.role==='user' ? 'flex-end' : 'flex-start' }}>
-                  {m.image && <img src={`data:image/png;base64,${m.image}`} alt="uploaded" style={{ maxWidth:240, borderRadius:8, marginBottom:4, border:'1px solid #2a2a4e' }} />}
+                  {m.image && (
+                    <img
+                      src={`data:image/png;base64,${m.image}`}
+                      alt="uploaded"
+                      style={{ maxWidth:240, borderRadius:6, marginBottom:4, border:`1px solid ${C.border}` }}
+                    />
+                  )}
                   <div style={{
-                    maxWidth:'90%', padding:'9px 13px',
-                    borderRadius: m.role==='user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                    background: m.role==='user' ? 'linear-gradient(135deg,#3a3aaa,#5B4FE9)' : '#0f0f28',
-                    color: m.role==='user' ? '#dde' : '#b0b0ee',
+                    maxWidth:'90%',
+                    padding:'9px 13px',
+                    borderRadius: m.role==='user' ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
+                    background: m.role==='user' ? C.accent : C.panel,
+                    color: m.role==='user' ? '#000' : C.text,
                     fontSize:12, lineHeight:1.6,
-                    border: m.role==='assistant' ? '1px solid #1a1a3e' : 'none',
+                    border: m.role==='assistant' ? `1px solid ${C.border}` : 'none',
                     whiteSpace:'pre-wrap', wordBreak:'break-word',
-                  }}>{m.content}</div>
+                  }}>
+                    {m.content}
+                  </div>
                 </div>
               ))}
 
               {/* Live progress while loading */}
               {loading && (
-                <div style={{ background:'#06060f', border:'1px solid #1a1a3e', borderRadius:12, padding:'12px 14px', fontFamily:'var(--font-dm-mono)', fontSize:11 }}>
-                  {/* Step counter */}
+                <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px', fontFamily:'var(--font-mono)', fontSize:11 }}>
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, color:'#8899dd' }}>
-                      <span style={{ width:7, height:7, borderRadius:'50%', background:'#5B4FE9', display:'inline-block', animation:'pulse 1s infinite' }}/>
-                      <span style={{ fontWeight:600 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, color:C.text }}>
+                      <span style={{ width:6, height:6, borderRadius:'50%', background:C.accent, display:'inline-block', animation:'shimmer 1s infinite' }}/>
+                      <span style={{ fontWeight:500 }}>
                         {stepCount > 0 ? `Step ${stepCount} / ~12` : 'Starting...'}
                       </span>
                     </div>
-                    <span style={{ color:'#3a3a6a', fontSize:10 }}>{toolCalls.length} tool{toolCalls.length !== 1 ? 's' : ''}</span>
+                    <span style={{ color:C.textFaint, fontSize:10 }}>{toolCalls.length} tool{toolCalls.length !== 1 ? 's' : ''}</span>
                   </div>
-                  {/* Progress bar */}
-                  <div style={{ background:'#0d0d20', borderRadius:3, height:4, marginBottom:8, overflow:'hidden' }}>
+                  <div style={{ background:C.bg, borderRadius:2, height:3, marginBottom:8, overflow:'hidden' }}>
                     <div style={{
-                      height:'100%', borderRadius:3,
-                      background:'linear-gradient(90deg,#5B4FE9,#00D4FF)',
+                      height:'100%',
+                      borderRadius:2,
+                      background: C.accent,
                       width: stepCount === 0 ? '5%' : `${Math.min(92, (stepCount / 12) * 100)}%`,
                       transition:'width 0.6s ease',
                     }}/>
                   </div>
-                  {/* Current action */}
                   {liveStatus && (
-                    <div style={{ color:'#6677cc', fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom: toolCalls.length > 0 ? 8 : 0 }}>
+                    <div style={{ color:C.textDim, fontSize:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom: toolCalls.length > 0 ? 8 : 0 }}>
                       ▸ {liveStatus}
                     </div>
                   )}
-                  {/* Tool call log */}
                   {toolCalls.length > 0 && (
-                    <div style={{ borderTop:'1px solid #12122a', paddingTop:7, display:'flex', flexDirection:'column', gap:2, maxHeight:120, overflowY:'auto' }}>
+                    <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:7, display:'flex', flexDirection:'column', gap:2, maxHeight:120, overflowY:'auto' }}>
                       {toolCalls.map((t, i) => (
                         <div key={i} style={{ display:'flex', alignItems:'center', gap:6, fontSize:10 }}>
-                          <span style={{ flexShrink:0, fontSize:9, color: t.status==='running' ? '#7788cc' : t.status==='error' ? '#FF4757' : '#3a6a3a' }}>
+                          <span style={{ flexShrink:0, fontSize:9, color: t.status==='running' ? C.textDim : t.status==='error' ? C.error : C.success }}>
                             {t.status==='running' ? '⟳' : t.status==='error' ? '✗' : '✓'}
                           </span>
                           <span style={{
-                            color: t.status==='running' ? '#8899ee' : t.status==='error' ? '#FF4757' : '#3a4a6a',
+                            color: t.status==='running' ? C.text : t.status==='error' ? C.error : C.textMore,
                             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1,
-                            fontWeight: t.status==='running' ? 600 : 400,
-                          }}>{t.name}</span>
+                            fontWeight: t.status==='running' ? 500 : 400,
+                          }}>
+                            {t.name}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -271,30 +337,65 @@ export default function DevPanel() {
             </div>
 
             {/* Input area */}
-            <div style={{ padding:'12px 14px', borderTop:'1px solid #1a1a3e', flexShrink:0 }}>
+            <div style={{ padding:'12px 14px', borderTop:`1px solid ${C.border}`, flexShrink:0 }}>
               {pendingImage && (
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, padding:'6px 10px', background:'#0f0f28', borderRadius:8, border:'1px solid #2a2a4e' }}>
-                  <img src={`data:image/png;base64,${pendingImage.base64}`} alt="preview" style={{ width:32, height:32, objectFit:'cover', borderRadius:4 }} />
-                  <span style={{ fontSize:11, color:'#6677cc', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📎 {pendingImage.name}</span>
-                  <button onClick={() => setPendingImage(null)} style={{ background:'none', border:'none', color:'#5555aa', cursor:'pointer', fontSize:13 }}>✕</button>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, padding:'6px 10px', background:C.panel, borderRadius:6, border:`1px solid ${C.border}` }}>
+                  <img
+                    src={`data:image/png;base64,${pendingImage.base64}`}
+                    alt="preview"
+                    style={{ width:32, height:32, objectFit:'cover', borderRadius:4 }}
+                  />
+                  <span style={{ fontSize:11, color:C.textDim, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {pendingImage.name}
+                  </span>
+                  <button
+                    onClick={() => setPendingImage(null)}
+                    style={{ color:C.textMore, cursor:'pointer', display:'flex' }}
+                    aria-label="Remove attachment"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
               )}
-              <div style={{ fontSize:10, color:'#2a2a5e', textAlign:'center', marginBottom:6 }}>Drop screenshot · paste ⌘V · or click 📎</div>
+              <div style={{ fontSize:10, color:C.textFaint, textAlign:'center', marginBottom:6 }}>
+                Drop screenshot · paste ⌘V · or click the attach icon
+              </div>
               <div style={{ display:'flex', gap:6, alignItems:'flex-end' }}>
-                <button onClick={() => fileRef.current?.click()} title="Upload file" style={{ flexShrink:0, width:32, height:32, background:'#0f0f28', border:'1px solid #2a2a4e', borderRadius:8, color:'#5566bb', fontSize:15, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>📎</button>
-                <textarea value={input} onChange={e => setInput(e.target.value)}
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  title="Upload file"
+                  style={{ flexShrink:0, width:30, height:30, background:C.panel, border:`1px solid ${C.border}`, borderRadius:6, color:C.textDim, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+                >
+                  <Paperclip size={14} strokeWidth={2} />
+                </button>
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
                   placeholder="Describe what to build or fix... (Enter to send)"
-                  style={{ flex:1, minHeight:36, maxHeight:120, resize:'none', background:'#0f0f28', border:'1px solid #2a2a4e', borderRadius:10, color:'#a0a0ee', fontSize:12, padding:'8px 10px', fontFamily:'var(--font-dm-sans)', lineHeight:1.5, outline:'none' }}
+                  style={{
+                    flex:1, minHeight:34, maxHeight:120, resize:'none',
+                    background:C.panel, border:`1px solid ${C.border}`, borderRadius:8,
+                    color:C.text, fontSize:12, padding:'7px 10px',
+                    fontFamily:'var(--font-sans)', lineHeight:1.5, outline:'none',
+                  }}
                   rows={2}
                 />
-                <button onClick={send} disabled={loading || !input.trim()} style={{
-                  flexShrink:0, width:32, height:32,
-                  background: loading || !input.trim() ? '#1a1a3e' : 'linear-gradient(135deg,#5B4FE9,#7B6FF0)',
-                  border:'none', borderRadius:8, color:'#fff', fontSize:14,
-                  cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                }}>↑</button>
+                <button
+                  onClick={send}
+                  disabled={loading || !input.trim()}
+                  style={{
+                    flexShrink:0, width:30, height:30,
+                    background: loading || !input.trim() ? C.panel : C.accent,
+                    color: loading || !input.trim() ? C.textFaint : '#000',
+                    border: loading || !input.trim() ? `1px solid ${C.border}` : 'none',
+                    borderRadius:6,
+                    cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}
+                >
+                  <ArrowUp size={14} strokeWidth={2.25} />
+                </button>
               </div>
               <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }} onChange={handleFile} />
             </div>
