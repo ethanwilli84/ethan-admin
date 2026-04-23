@@ -124,9 +124,9 @@ export default function Home() {
           </div>
         </div>
         <div style={{display:'flex',gap:8}}>
-          <button className="btn-ghost" style={{fontSize:12}} onClick={()=>setChatOpen(v=>!v)}>🤖 Ask AI</button>
-          <button className="btn-ghost" style={{fontSize:12}} onClick={()=>setShowLogs(v=>!v)}>📋 Live Logs</button>
-          <button className="btn-primary" onClick={()=>setShowCreator(!showCreator)}>+ New Campaign</button>
+          <button className="btn-ghost" style={{fontSize:12}} onClick={()=>setChatOpen(v=>!v)}>Ask AI</button>
+          <button className="btn-ghost" style={{fontSize:12}} onClick={()=>setShowLogs(v=>!v)}>Live Logs</button>
+          <button className="btn-primary" onClick={()=>setShowCreator(!showCreator)}>New Campaign</button>
         </div>
       </div>
 
