@@ -1,0 +1,32 @@
+name: Refresh Meta Audiences
+
+on:
+  # Daily at 10am UTC (~6am ET) — refreshes Sire's 5 Meta Custom Audience seeds
+  # from live shipments data. Seeds drive LAL targeting for the ads campaign.
+  schedule:
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run (compute seed sizes, do NOT push to Meta)'
+        required: false
+        default: 'false'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Refresh Meta custom audiences
+        run: |
+          DRY_RUN="${{ github.event.inputs.dryRun }}"
+          if [ -z "$DRY_RUN" ]; then DRY_RUN=false; fi
+          echo "dryRun=$DRY_RUN"
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.ADMIN_URL }}/api/ads/audiences/refresh" \
+            -H "Content-Type: application/json" \
+            -d "{\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -c 10000)
+          echo "HTTP $HTTP_CODE: $BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1
