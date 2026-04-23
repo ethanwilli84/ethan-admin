@@ -101,7 +101,7 @@ export default function FinancePage() {
               <div className="section-label" style={{ marginBottom: 12 }}>⚠ Flagged Transactions</div>
               {sync.anomalies.map((a, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 14 }}>{a.severity === 'high' ? '🔴' : a.severity === 'medium' ? '🟡' : '🔵'}</span>
+                  <span style={{ fontSize: 14 }}>{a.severity === 'high' ? '●' : a.severity === 'medium' ? '●' : '●'}</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{a.description}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{a.type} · {a.date}</div>

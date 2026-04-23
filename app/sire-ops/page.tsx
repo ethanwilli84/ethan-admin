@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 
-const BADGE = (label: string, color = '#5B4FE9') => (
+const BADGE = (label: string, color = 'var(--accent)') => (
   <span style={{ fontSize:10, background:`${color}22`, color, border:`1px solid ${color}44`, borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', marginLeft:8 }}>{label}</span>
 )
 
@@ -98,7 +98,7 @@ export default function SireOpsPage() {
       </div>
 
       {/* What to build */}
-      <div style={{ padding:20, borderRadius:12, background:'rgba(91,79,233,0.06)', border:'1px dashed var(--accent)' }}>
+      <div style={{ padding:20, borderRadius:12, background:'var(--surface-2)', border:'1px dashed var(--accent)' }}>
         <div style={{ fontWeight:600, fontSize:14, marginBottom:10 }}>To make Sire Ops functional:</div>
         {[
           ['Pirate Ship API', 'Pull real label volume, revenue, merchant breakdown — GraphQL API available'],

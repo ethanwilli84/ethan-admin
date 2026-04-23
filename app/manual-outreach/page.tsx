@@ -2,13 +2,13 @@
 import Link from 'next/link'
 
 const SCAFFOLD_STYLE = { opacity:0.4, pointerEvents:'none' as const }
-const BADGE = (label: string, color = '#5B4FE9') => (
+const BADGE = (label: string, color = 'var(--accent)') => (
   <span style={{ fontSize:10, background:`${color}22`, color, border:`1px solid ${color}44`, borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', marginLeft:8 }}>{label}</span>
 )
 
 export default function ManualOutreachPage() {
   const channels = [
-    { name:'Instagram DMs', icon:'📸', status:'not_built', description:'Queue targets, track sent DMs, log replies from phone', count:0 },
+    { name:'Instagram DMs', icon:'', status:'not_built', description:'Queue targets, track sent DMs, log replies from phone', count:0 },
     { name:'LinkedIn DMs', icon:'💼', status:'not_built', description:'Manual DM targets with notes and follow-up tracking', count:0 },
     { name:'Twitter/X DMs', icon:'🐦', status:'not_built', description:'Cold outreach via Twitter DMs', count:0 },
     { name:'SMS (Google Voice)', icon:'📱', status:'partial', description:'Track outbound texts and full conversation threads', count:0 },
@@ -59,7 +59,7 @@ export default function ManualOutreachPage() {
             {mockTargets.map((t,i) => (
               <tr key={i} style={{ borderBottom:'1px solid var(--border)' }}>
                 <td style={{ padding:'8px 10px', fontWeight:600 }}>{t.name}</td>
-                <td style={{ padding:'8px 10px' }}>{t.platform === 'instagram' ? '📸' : '💼'} {t.platform}</td>
+                <td style={{ padding:'8px 10px' }}>{t.platform === 'instagram' ? '' : '💼'} {t.platform}</td>
                 <td style={{ padding:'8px 10px' }}><span style={{ fontSize:10, background:t.status==='dm_sent'?'rgba(0,200,150,0.1)':'var(--surface-2)', color:t.status==='dm_sent'?'var(--green)':'var(--text-3)', padding:'2px 8px', borderRadius:4, fontFamily:'var(--font-dm-mono)' }}>{t.status}</span></td>
                 <td style={{ padding:'8px 10px', fontSize:11, color:'var(--text-3)' }}>{t.notes}</td>
                 <td style={{ padding:'8px 10px', fontSize:11, color:'var(--text-3)' }}>{t.added}</td>

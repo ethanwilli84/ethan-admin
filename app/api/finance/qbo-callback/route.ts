@@ -79,7 +79,7 @@ QBO_REALM_ID=${realmId}
 QBO_REFRESH_TOKEN=${refreshToken}
       </pre>
       <p style="color:#666;font-size:13px">The refresh token lasts 101 days and auto-renews on each use.</p>
-      <a href="/finance" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#5B4FE9;color:white;border-radius:8px;text-decoration:none">← Go to Finance Monitor</a>
+      <a href="/finance" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#000;color:white;border-radius:8px;text-decoration:none">← Go to Finance Monitor</a>
     </body></html>`, { headers: { 'Content-Type': 'text/html' } })
 
   } catch (e: unknown) {

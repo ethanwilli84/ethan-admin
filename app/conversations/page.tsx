@@ -2,14 +2,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
-const BADGE = (label: string, color = '#5B4FE9') => (
+const BADGE = (label: string, color = 'var(--accent)') => (
   <span style={{ fontSize:10, background:`${color}22`, color, border:`1px solid ${color}44`, borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', marginLeft:8 }}>{label}</span>
 )
 
 const CHANNELS = [
   { id:'imessage', label:'iMessage', icon:'💬', color:'#34C759', connected:true, description:'Reads Mac Messages DB every 30 min via LaunchAgent' },
   { id:'slack', label:'Slack', icon:'#', color:'#4A154B', connected:true, description:'All #alpine-* channels synced every 30 min' },
-  { id:'email_sire', label:'Email (Sire)', icon:'📧', color:'#5B4FE9', connected:true, description:'ethan@sireapp.io via IMAP' },
+  { id:'email_sire', label:'Email (Sire)', icon:'📧', color:'var(--accent)', connected:true, description:'ethan@sireapp.io via IMAP' },
   { id:'whatsapp', label:'WhatsApp', icon:'📱', color:'#25D366', connected:false, description:'Needs WhatsApp desktop DB access — planned' },
   { id:'google_voice', label:'Google Voice', icon:'📞', color:'#4285F4', connected:false, description:'Takeout import available. Real-time: planned' },
 ]
@@ -23,7 +23,7 @@ const MOCK_THREADS = [
 ]
 
 const CHAN_ICON: Record<string,string> = { imessage:'💬', slack:'#', email_sire:'📧', whatsapp:'📱', google_voice:'📞' }
-const CHAN_COLOR: Record<string,string> = { imessage:'#34C759', slack:'#4A154B', email_sire:'#5B4FE9', whatsapp:'#25D366', google_voice:'#4285F4' }
+const CHAN_COLOR: Record<string,string> = { imessage:'#34C759', slack:'#4A154B', email_sire:'var(--accent)', whatsapp:'#25D366', google_voice:'#4285F4' }
 
 export default function ConversationsPage() {
   const [activeChannel, setActiveChannel] = useState('all')
@@ -82,7 +82,7 @@ export default function ConversationsPage() {
         {/* Thread detail — placeholder */}
         <div className="card" style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:400 }}>
           <div style={{ textAlign:'center', color:'var(--text-3)' }}>
-            <div style={{ fontSize:32, marginBottom:8 }}>💬</div>
+            <div style={{ fontSize:32, marginBottom:8 }}></div>
             <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Thread Viewer</div>
             <div style={{ fontSize:12 }}>TODO: Show full conversation with both sides,<br/>AI summary, linked issues, quick reply</div>
             {BADGE('TODO — needs WhatsApp + GV full thread access')}

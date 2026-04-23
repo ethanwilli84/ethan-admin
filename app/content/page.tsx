@@ -11,7 +11,7 @@ interface ContentItem {
 const TYPE_CONFIG = {
   youtube: { label: 'YouTube Video', icon: '▶️', color: '#ff0000' },
   gdoc: { label: 'Google Doc', icon: '📄', color: '#4285F4' },
-  file: { label: 'File Upload', icon: '📎', color: '#5B4FE9' },
+  file: { label: 'File Upload', icon: '📎', color: 'var(--accent)' },
   link: { label: 'Link', icon: '🔗', color: '#00C896' },
   note: { label: 'Apple Note', icon: '📝', color: '#f59e0b' },
 }
@@ -157,7 +157,7 @@ export default function ContentPage() {
 
               {/* File icon */}
               {item.type === 'file' && (
-                <div style={{ marginBottom: 12, height: 60, background: 'rgba(91,79,233,0.08)', border: '1px solid rgba(91,79,233,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px' }}>
+                <div style={{ marginBottom: 12, height: 60, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px' }}>
                   <span style={{ fontSize: 24 }}>📎</span>
                   <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--font-dm-mono)' }}>{item.fileName}</span>
                 </div>

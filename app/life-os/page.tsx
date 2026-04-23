@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
-const BADGE = (label: string, color = '#5B4FE9') => (
+const BADGE = (label: string, color = 'var(--accent)') => (
   <span style={{ fontSize:10, background:`${color}22`, color, border:`1px solid ${color}44`, borderRadius:20, padding:'2px 8px', fontFamily:'var(--font-dm-mono)', marginLeft:8 }}>{label}</span>
 )
 
@@ -28,7 +28,7 @@ export default function LifeOSPage() {
       <div style={{ marginBottom:24 }}>
         <Link href="/" style={{ color:'var(--text-3)', fontSize:13, textDecoration:'none' }}>← Admin</Link>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:4 }}>
-          <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:22 }}>🧠 AI Life OS</div>
+          <div style={{ fontFamily:'var(--font-syne)', fontWeight:700, fontSize:22 }}>AI Life OS</div>
           {BADGE('FRONTEND ONLY','#f59e0b')}
         </div>
         <div style={{ fontSize:13, color:'var(--text-3)', marginTop:4 }}>
@@ -38,7 +38,7 @@ export default function LifeOSPage() {
 
       {/* View toggle */}
       <div className="tabs" style={{ marginBottom:24 }}>
-        <button className={`tab ${view==='board'?'active':''}`} onClick={()=>setView('board')}>📋 Task Board</button>
+        <button className={`tab ${view==='board'?'active':''}`} onClick={()=>setView('board')}>Task Board</button>
         <button className={`tab ${view==='swipe'?'active':''}`} onClick={()=>setView('swipe')}>👆 Swipe to Approve</button>
       </div>
 
@@ -97,7 +97,7 @@ export default function LifeOSPage() {
             )
           })}
           <div style={{ padding:16, borderRadius:10, background:'var(--surface-2)', border:'1px dashed var(--border)', textAlign:'center', color:'var(--text-3)', fontSize:12 }}>
-            <div style={{ fontSize:20, marginBottom:6 }}>🤖</div>
+            <div style={{ fontSize:20, marginBottom:6 }}></div>
             <div style={{ fontWeight:600, marginBottom:4 }}>AI Idea Engine</div>
             <div>TODO: Weekly agent analyzes Sire + Alpine metrics and surfaces &quot;here&apos;s what I&apos;d focus on&quot; — unprompted</div>
             {BADGE('NOT BUILT YET')}

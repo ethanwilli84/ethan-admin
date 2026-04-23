@@ -61,7 +61,7 @@ export default function AlpineOpsPage() {
 
       {/* Tabs */}
       <div className="tabs" style={{ marginBottom:20 }}>
-        {[['chargebacks','💳 Chargebacks'],['collector','📞 Collector Queue'],['failed','❌ Failed Payments']].map(([val,label]) => (
+        {[['chargebacks','💳 Chargebacks'],['collector','📞 Collector Queue'],['failed','✗ Failed Payments']].map(([val,label]) => (
           <button key={val} className={`tab ${tab===val?'active':''}`} onClick={()=>setTab(val as typeof tab)}>{label}</button>
         ))}
       </div>
@@ -71,7 +71,7 @@ export default function AlpineOpsPage() {
       {/* Chargebacks */}
       {!loading && tab === 'chargebacks' && (
         <div>
-          {data?.chargebacks.length === 0 && <div className="card" style={{ textAlign:'center', padding:30, color:'var(--text-3)' }}>✅ No open chargebacks</div>}
+          {data?.chargebacks.length === 0 && <div className="card" style={{ textAlign:'center', padding:30, color:'var(--text-3)' }}>✓ No open chargebacks</div>}
           {data?.chargebacks.map(cb => (
             <div key={cb._id} className="card" style={{ marginBottom:12 }}>
               <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>

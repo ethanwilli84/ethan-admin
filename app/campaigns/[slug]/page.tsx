@@ -168,7 +168,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
       const last = [...d.lines].reverse().find((l:string) => l.trim() && !l.includes('◌') && !l.startsWith('#'))
       if (last) setRunStep(last.substring(0, 60))
     } else if (d.status === 'completed') {
-      const summary = d.lines?.find((l:string) => l.includes('Done') || l.includes('✅')) || ''
+      const summary = d.lines?.find((l:string) => l.includes('Done') || l.includes('✓')) || ''
       setRunStep(summary.substring(0, 60))
     } else {
       setRunStep('')
@@ -314,12 +314,12 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               </span>
             </div>
           )}
-          <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'▶ Resume':'⏸ Pause'}</button>
+          <button className="btn-ghost" style={{fontSize:12}} onClick={togglePause}>{config.paused?'Resume':'Pause'}</button>
           <button className="btn-primary" style={{fontSize:12}} onClick={runNowWithLogs} 
             disabled={triggering}
             title={logs.status==='in_progress'?'A run is active — clicking will queue another':'Run campaign now'}
           >
-            {triggering?'◌ Queuing...':logs.status==='in_progress'?'▶ Run Again':'▶ Run Now'}
+            {triggering?'◌ Queuing...':logs.status==='in_progress'?'Run Again':'Run Now'}
           </button>
         </div>
       </div>
@@ -333,7 +333,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
             </div>
           ))}
           <div style={{marginLeft:'auto',display:'flex',gap:8,alignItems:'center'}}>
-            <button className="btn-ghost" style={{fontSize:11}} onClick={pullGmail} disabled={pullLoading}>{pullLoading?'◌ Pulling...':'⟳ Sync Gmail'}</button>
+            <button className="btn-ghost" style={{fontSize:11}} onClick={pullGmail} disabled={pullLoading}>{pullLoading?'◌ Pulling...':'Sync Gmail'}</button>
             {gmailStatus?.needsSetup&&<span style={{fontSize:11,color:'var(--amber)'}}>Gmail not configured</span>}
             {gmailStatus?.count!==undefined&&!gmailStatus.needsSetup&&<span style={{fontSize:11,color:'var(--green)'}}>{gmailStatus.count} replies found</span>}
           </div>
@@ -344,14 +344,14 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
         <div style={{background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',padding:'8px 32px',display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:13}}>⏸</span>
           <span style={{fontSize:12,color:'#f59e0b',fontWeight:500}}>Campaign is paused — outreach is not running automatically</span>
-          <button onClick={togglePause} style={{marginLeft:'auto',background:'rgba(255,170,0,0.15)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:8,color:'#f59e0b',fontSize:11,padding:'4px 12px',cursor:'pointer',fontWeight:600}}>▶ Resume Campaign</button>
+          <button onClick={togglePause} style={{marginLeft:'auto',background:'rgba(255,170,0,0.15)',border:'1px solid rgba(255,170,0,0.3)',borderRadius:8,color:'#f59e0b',fontSize:11,padding:'4px 12px',cursor:'pointer',fontWeight:600}}>Resume Campaign</button>
         </div>
       )}
 
       <div className="tabs">
         {(['dashboard','outreach','settings','chat'] as const).map(t=>(
           <button key={t} className={`tab ${tab===t?'active':''}`} onClick={()=>{setTab(t);if(t==='dashboard')fetchLogs()}}>
-            {t==='dashboard'?'◈ Dashboard':t==='outreach'?'◎ Outreach':t==='settings'?'⚙ Settings':'✦ AI Chat'}
+            {t==='dashboard'?'Dashboard':t==='outreach'?'Outreach':t==='settings'?'Settings':'AI Chat'}
           </button>
         ))}
       </div>
@@ -373,7 +373,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                 {stats.byCategory.length===0&&<div style={{color:'var(--text-3)',fontSize:13}}>No data yet</div>}
                 {stats.byCategory.map((cat,i)=>{
                     const pct = Math.min(100,(cat.count/((records.length)||1))*100)
-                    const colors = ['#5B4FE9','#00D4FF','#00C896','#FF6B6B','#FFB347','#A78BFA','#34D399']
+                    const colors = ['var(--accent)','var(--accent-2)','#00C896','#FF6B6B','#FFB347','#A78BFA','#34D399']
                     const color = colors[i % colors.length]
                     const label = cat._id.replace(/_/g,' ').replace(/\w/g, (l:string)=>l.toUpperCase())
                     return (
@@ -400,7 +400,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                 <div style={{display:'flex',alignItems:'center',gap:10}}>
                   <div style={{fontFamily:'var(--font-syne)',fontWeight:700,fontSize:14}}>
-                    {logs.status==='in_progress'?'🟢':'🔵'} Run Logs
+                    {logs.status==='in_progress'?'●':'●'} Run Logs
                   </div>
                   {logs.status==='in_progress'&&<span style={{fontFamily:'var(--font-dm-mono)',fontSize:10,color:'var(--green)',background:'rgba(0,200,150,0.1)',padding:'2px 8px',borderRadius:20}}>LIVE</span>}
                   {logs.status==='completed'&&<span style={{fontFamily:'var(--font-dm-mono)',fontSize:10,color:logs.conclusion==='success'?'var(--green)':'var(--red)',background:logs.conclusion==='success'?'rgba(0,200,150,0.1)':'rgba(255,71,87,0.1)',padding:'2px 8px',borderRadius:20}}>{logs.conclusion?.toUpperCase()||'DONE'}</span>}
@@ -413,16 +413,16 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               </div>
               {logs.lines.length===0&&logs.status==='idle'&&(
                 <div style={{fontFamily:'var(--font-dm-mono)',fontSize:11,color:'var(--text-3)',padding:'20px',textAlign:'center'}}>
-                  No active run. Hit ▶ Run Now to start a campaign and watch it live.
+                  No active run. Hit Run Now to start a campaign and watch it live.
                 </div>
               )}
               {logs.lines.length>0&&(
                 <div style={{background:'#0a0a12',border:'1px solid #1a1a2e',borderRadius:10,padding:'12px 16px',maxHeight:300,overflowY:'auto',fontFamily:'var(--font-dm-mono)',fontSize:11,lineHeight:1.8}}>
                   {logs.lines.map((line,i)=>{
-                    const isSuccess=line.includes('✅')||line.includes('✓ Sent')
+                    const isSuccess=line.includes('✓')||line.includes('✓ Sent')
                     const isSkip=line.includes('⏭')||line.includes('⏸')
                     const isError=line.includes('✗')||line.includes('Failed')
-                    const isHeader=line.includes('===')||line.includes('🚀')||line.includes('Orchestrator')
+                    const isHeader=line.includes('===')||line.includes('')||line.includes('Orchestrator')
                     const isProcessing=line.includes('Processing:')
                     return (<div key={i} style={{color:isSuccess?'#00C896':isError?'#FF4757':isSkip?'#888':isHeader?'#a0a0ff':isProcessing?'#c0c0ff':'#6a6a8a',fontWeight:isHeader||isProcessing?600:400,paddingLeft:isSkip||isSuccess||isError?8:0,borderLeft:isSuccess?'2px solid #00C896':isError?'2px solid #FF4757':isSkip?'2px solid #444':'none'}}>{line}</div>)
                   })}
@@ -472,9 +472,9 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
   <th>Date</th><th>Platform</th><th>Category</th><th>Contacts</th><th>Status</th><th>AI Status</th><th>Next Step</th>
 </tr></thead>
                 <tbody>
-                  {filtered.length===0&&<tr><td colSpan={8} className="td-empty">✦ No records yet</td></tr>}
+                  {filtered.length===0&&<tr><td colSpan={8} className="td-empty">No records yet</td></tr>}
                   {filtered.map(rec=>(
-                    <tr key={rec._id} style={{background:checkedIds.has(rec._id)?'rgba(91,79,233,0.06)':undefined}}>
+                    <tr key={rec._id} style={{background:checkedIds.has(rec._id)?'var(--surface-2)':undefined}}>
                       <td style={{width:32,paddingRight:4}} onClick={e=>e.stopPropagation()}>
                         <input type="checkbox" style={{cursor:'pointer'}}
                           checked={checkedIds.has(rec._id)}
@@ -503,7 +503,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                           </div>
                         ):rec.status==='Replied'?(
                           <button className="td-action" onClick={()=>analyzeReply(rec)} disabled={analyzingId===rec._id}>
-                            {analyzingId===rec._id?'◌ Analyzing...':'✦ Analyze'}
+                            {analyzingId===rec._id?'◌ Analyzing...':'Analyze'}
                           </button>
                         ):'—'}
                       </td>
@@ -546,7 +546,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
                 border: `1px solid ${overlapInfo.risk==='high'?'rgba(255,71,87,0.3)':overlapInfo.risk==='medium'?'rgba(255,170,0,0.3)':'rgba(0,200,150,0.2)'}`,
               }}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-                  <span style={{fontSize:14}}>{overlapInfo.risk==='high'?'🚨':overlapInfo.risk==='medium'?'⚠️':'⚡'}</span>
+                  <span style={{fontSize:14}}>{overlapInfo.risk==='high'?'!':overlapInfo.risk==='medium'?'⚠':'⚡'}</span>
                   <span style={{fontWeight:700,fontSize:13,color:overlapInfo.risk==='high'?'var(--red)':overlapInfo.risk==='medium'?'#f59e0b':'var(--green)'}}>
                     {overlapInfo.risk==='high'?'High':'Medium'} overlap risk
                   </span>
@@ -732,7 +732,7 @@ export default function CampaignPage({ params }: { params: Promise<{ slug: strin
               )}
               {chatMsgs.map((m,i)=>(
                 <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-                  <div style={{maxWidth:'80%',padding:'12px 16px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?'linear-gradient(135deg,var(--accent),#7B6FF0)':'var(--surface)',color:m.role==='user'?'#fff':'var(--text)',fontSize:13,lineHeight:1.6,border:m.role==='assistant'?'1px solid var(--border)':'none',boxShadow:'var(--shadow)',whiteSpace:'pre-wrap'}}>
+                  <div style={{maxWidth:'80%',padding:'12px 16px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?'linear-gradient(135deg,var(--accent),var(--accent-2))':'var(--surface)',color:m.role==='user'?'#fff':'var(--text)',fontSize:13,lineHeight:1.6,border:m.role==='assistant'?'1px solid var(--border)':'none',boxShadow:'var(--shadow)',whiteSpace:'pre-wrap'}}>
                     {m.content}
                   </div>
                 </div>
