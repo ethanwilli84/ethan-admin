@@ -1,0 +1,50 @@
+# Component to add to ethan-admin's DO App Platform spec.
+#
+# Schedule strategy — 10am ET YEAR-ROUND despite DO crons being UTC-only:
+#   We fire at BOTH 14:00 UTC and 15:00 UTC. Exactly one of them is 10am ET:
+#     • Summer (EDT, UTC-4): 14:00 UTC = 10am ET   → run
+#     • Winter (EST, UTC-5): 15:00 UTC = 10am ET   → run
+#   The wrong-hour fire bails out via run.py's hour guard. No DST drift.
+#
+# Twilio creds are inherited from the App-spec-level shared `envs:` block
+# (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN already configured on this app).
+# This component only declares its job-specific env.
+
+jobs:
+  - name: daily-brief
+    kind: CRON
+    schedule: "0 14,15 * * *"      # 10am ET year-round (run.py bails on the off hour)
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    source_dir: daily-brief
+    dockerfile_path: daily-brief/Dockerfile
+    github:
+      repo: ethanwilli84/ethan-admin
+      branch: main
+      deploy_on_push: true
+    envs:
+      - key: TWILIO_FROM_NUMBER
+        scope: RUN_TIME
+        value: "+15513102370"
+      - key: BRIEF_TO_NUMBER
+        scope: RUN_TIME
+        value: "+17346645129"
+      - key: BRIEF_BASE_URL
+        scope: RUN_TIME
+        value: "https://ethan-admin-hlfdr.ondigitalocean.app"
+      - key: BRIEF_SECRET
+        scope: RUN_TIME
+        type: SECRET
+
+  - name: daily-brief-consolidate
+    kind: CRON
+    schedule: "0 3 * * 1"          # Mondays 03:00 UTC ≈ Sunday 22-23:00 ET
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    source_dir: daily-brief
+    dockerfile_path: daily-brief/Dockerfile
+    github:
+      repo: ethanwilli84/ethan-admin
+      branch: main
+      deploy_on_push: true
+    run_command: python /app/consolidate.py

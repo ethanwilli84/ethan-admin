@@ -1,0 +1,37 @@
+{
+  "_comment": "Maintained by Ethan. Add/edit entries here, the daily brief reads this at run time.",
+  "entries": [
+    {
+      "investor": "Pier Asset Mgmt",
+      "stage": "term sheet received",
+      "last_touch": "2026-04-22T00:00:00Z",
+      "next_action": "respond on covenant terms",
+      "owner": "Cassandra Doeng",
+      "overdue_after_days": 4
+    },
+    {
+      "investor": "Percent",
+      "stage": "Step 1 DD",
+      "last_touch": "2026-04-20T00:00:00Z",
+      "next_action": "deliver 10-doc package follow-ups",
+      "owner": "Lucas Keefer",
+      "overdue_after_days": 5
+    },
+    {
+      "investor": "Hudson Cove",
+      "stage": "DD list received",
+      "last_touch": "2026-04-22T00:00:00Z",
+      "next_action": "respond to 8-item DD list",
+      "owner": "Ed Lee",
+      "overdue_after_days": 3
+    },
+    {
+      "investor": "Coromandel Capital",
+      "stage": "MNDA signed",
+      "last_touch": "2026-04-15T00:00:00Z",
+      "next_action": "send teaser deck",
+      "owner": "—",
+      "overdue_after_days": 7
+    }
+  ]
+}

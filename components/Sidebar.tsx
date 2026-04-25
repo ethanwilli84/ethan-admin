@@ -20,6 +20,8 @@ import {
   Lock,
   Radio,
   Sparkles,
+  Newspaper,
+  Rss,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react'
@@ -63,6 +65,13 @@ const NAV: NavGroup[] = [
     items: [
       { label: 'Finance Monitor', href: '/finance', icon: DollarSign },
       { label: 'Investor Access', href: '/investor-access', icon: Lock },
+    ],
+  },
+  {
+    section: 'Daily Brief',
+    items: [
+      { label: 'Brief Tuning', href: '/brief-tuning', icon: Newspaper },
+      { label: 'Brief Sources', href: '/brief-sources', icon: Rss },
     ],
   },
   {

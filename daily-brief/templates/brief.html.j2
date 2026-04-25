@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Brief · {{ date_human }}</title>
+<style>{{ css | safe }}</style>
+</head>
+<body data-slug="{{ slug }}">
+
+<header class="bf-header">
+  <img class="bf-logo" src="https://sireship.com/assets/images/logo.png" alt="Sire">
+  <div class="bf-date">{{ date_human }}</div>
+</header>
+
+<main class="bf-main">
+
+  {% if one_thing %}
+  <section class="bf-card bf-one-thing fade-up">
+    <div class="bf-section-label">The one thing</div>
+    <p class="bf-one-thing-body">{{ one_thing }}</p>
+  </section>
+  {% endif %}
+
+  {% if business_pulse and not business_pulse.error %}
+  <section class="bf-card fade-up fade-up-1">
+    <div class="bf-section-label">Business pulse</div>
+
+    {% set sire = business_pulse.sire %}
+    {% if sire and not sire.unavailable %}
+      <h3 class="bf-sub">Sire</h3>
+      {% set m = sire.labels_yday %}
+      <div class="bf-metric-row">
+        <span class="bf-metric-label">{{ m.label }} yesterday</span>
+        <span class="bf-metric-value">{{ "{:,.0f}".format(m.value) }}</span>
+        {% if m.is_anomaly %}
+          <span class="bf-pill {{ 'bf-pill-up' if m.direction == 'up' else 'bf-pill-down' }}">
+            {{ "↑" if m.direction == "up" else "↓" }} {{ m.direction }} vs avg
+          </span>
+        {% endif %}
+        <span class="bf-metric-sub">7d avg {{ "{:,.0f}".format(m.trailing_7d_avg) }}</span>
+      </div>
+      {% if sire.top_merchants %}
+        <div class="bf-metric-sub" style="margin-top:8px">Top merchants:
+          {% for tm in sire.top_merchants %}{{ tm.merchant_id[-6:] }} ({{ tm.labels }}){% if not loop.last %} · {% endif %}{% endfor %}
+        </div>
+      {% endif %}
+    {% endif %}
+
+    {% set alp = business_pulse.alpine %}
+    {% if alp and not alp.unavailable %}
+      <h3 class="bf-sub" style="margin-top:14px">Alpine</h3>
+      {% set m = alp.originations_yday %}
+      <div class="bf-metric-row">
+        <span class="bf-metric-label">Originations</span>
+        <span class="bf-metric-value">${{ "{:,.0f}".format(m.value) }}</span>
+        {% if m.is_anomaly %}
+          <span class="bf-pill {{ 'bf-pill-up' if m.direction == 'up' else 'bf-pill-down' }}">
+            {{ "↑" if m.direction == "up" else "↓" }} vs avg
+          </span>
+        {% endif %}
+      </div>
+      <div class="bf-metric-row">
+        <span class="bf-metric-label">Delinquency rate</span>
+        <span class="bf-metric-value">{{ alp.delinquency_rate_pct }}%</span>
+        <span class="bf-metric-sub">{{ alp.active_loans }} active</span>
+      </div>
+      {% if alp.flipped_to_30dpd_today %}
+        <div class="bf-warn">⚠ {{ alp.flipped_to_30dpd_today | length }} loan{{ '' if alp.flipped_to_30dpd_today|length == 1 else 's' }} flipped to 30+ DPD today</div>
+      {% endif %}
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if fundraising and fundraising['items'] %}
+  <section class="bf-card fade-up fade-up-2">
+    <div class="bf-section-label">Fundraising tracker</div>
+    {% for it in fundraising['items'] %}
+      <div class="bf-fund-row {{ 'bf-overdue' if it.is_overdue else '' }}">
+        <div class="bf-fund-name">{{ it.investor }} <span class="bf-metric-sub">· {{ it.stage }}</span></div>
+        <div class="bf-fund-meta">
+          {% if it.days_since_last_touch is not none %}
+            {{ it.days_since_last_touch }}d since last touch
+          {% else %}
+            no contact logged
+          {% endif %}
+          {% if it.next_action %}· next: {{ it.next_action }}{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% for section_key, section_title in [('ai_news', 'AI news'), ('stuff_that_affects_my_life', 'Stuff that affects my life')] %}
+    {% set items = curated.get(section_key, []) %}
+    {% if items %}
+    <section class="bf-card fade-up fade-up-3">
+      <div class="bf-section-label">{{ section_title }}</div>
+      {% for item in items %}
+        <article class="bf-item" data-source="{{ item.source }}" data-url="{{ item.url }}" data-title="{{ item.title|e }}">
+          <a class="bf-item-title" href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+          <p class="bf-item-summary">{{ item.summary }}</p>
+          {% if item.implication %}
+            <p class="bf-item-impl"><em>{{ item.implication }}</em></p>
+          {% endif %}
+          <div class="bf-item-meta">
+            <span class="bf-item-source">{{ item.source }} · score {{ item.score }}</span>
+            <span class="bf-item-actions">
+              <button class="bf-fb" data-verdict="up" aria-label="thumbs up">👍</button>
+              <button class="bf-fb" data-verdict="down" aria-label="thumbs down">👎</button>
+              <button class="bf-fb" data-verdict="less" aria-label="less of this">less of this</button>
+              <button class="bf-fb-note-toggle" aria-label="note">note</button>
+            </span>
+          </div>
+          <div class="bf-fb-note-row" hidden>
+            <input type="text" class="bf-fb-note" placeholder="why?" maxlength="200">
+            <button class="bf-fb-note-save">save</button>
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+    {% endif %}
+  {% endfor %}
+
+  {% if curated.killed %}
+  <section class="bf-card fade-up fade-up-4 bf-killed">
+    <details>
+      <summary class="bf-section-label">Show {{ curated.killed | length }} item{{ '' if curated.killed|length == 1 else 's' }} I filtered out</summary>
+      {% for item in curated.killed %}
+        <article class="bf-item bf-item-killed" data-source="{{ item.source|default('') }}" data-url="{{ item.url }}" data-title="{{ item.title|e }}">
+          <a class="bf-item-title" href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+          <div class="bf-item-meta">
+            <span class="bf-item-source">score {{ item.score }} · {{ item.reason }}</span>
+            <span class="bf-item-actions">
+              <button class="bf-fb" data-verdict="override">show me this</button>
+              <button class="bf-fb-note-toggle" aria-label="note">note</button>
+            </span>
+          </div>
+          <div class="bf-fb-note-row" hidden>
+            <input type="text" class="bf-fb-note" placeholder="why?" maxlength="200">
+            <button class="bf-fb-note-save">save</button>
+          </div>
+        </article>
+      {% endfor %}
+    </details>
+  </section>
+  {% endif %}
+
+</main>
+
+<footer class="bf-footer">
+  filtered for ethan · generated {{ generated_at_human }}
+</footer>
+
+<script>
+(function () {
+  function getOrCreateToken() {
+    var key = "bf_token";
+    var t = document.cookie.split("; ").find(function (r) { return r.indexOf(key + "=") === 0; });
+    if (t) return t.split("=")[1];
+    var token = (crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    var expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = key + "=" + token + "; path=/; expires=" + expires + "; SameSite=Lax";
+    return token;
+  }
+
+  function post(verdict, item, note) {
+    return fetch("/api/brief/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: getOrCreateToken(),
+        slug: document.body.dataset.slug,
+        verdict: verdict,
+        item_title: item.dataset.title || "",
+        item_url: item.dataset.url || "",
+        item_source: item.dataset.source || "",
+        note: note || ""
+      })
+    });
+  }
+
+  document.querySelectorAll(".bf-fb").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var item = btn.closest(".bf-item");
+      var verdict = btn.dataset.verdict;
+      btn.classList.add("bf-fb-active");
+      btn.disabled = true;
+      post(verdict, item).catch(function () { btn.classList.remove("bf-fb-active"); btn.disabled = false; });
+    });
+  });
+
+  document.querySelectorAll(".bf-fb-note-toggle").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var row = btn.closest(".bf-item").querySelector(".bf-fb-note-row");
+      row.hidden = !row.hidden;
+      if (!row.hidden) row.querySelector(".bf-fb-note").focus();
+    });
+  });
+
+  document.querySelectorAll(".bf-fb-note-save").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var row = btn.parentElement;
+      var input = row.querySelector(".bf-fb-note");
+      var item = btn.closest(".bf-item");
+      var note = input.value.trim();
+      if (!note) return;
+      btn.disabled = true;
+      post("note", item, note).then(function () {
+        btn.textContent = "saved";
+        input.disabled = true;
+      }).catch(function () { btn.disabled = false; });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# daily-brief
+/daily-brief/.env
+/daily-brief/runs/*.json
+/daily-brief/.venv/
+/daily-brief/__pycache__/
+/daily-brief/sources/__pycache__/
+/daily-brief/prompts/learned_rules.md
+
