@@ -16,6 +16,9 @@ interface Finding {
   rationale: string
   status: string
   outcome?: string
+  prNumber?: number
+  prUrl?: string
+  applyError?: string
   notes?: string[]
   searchQuery?: string
   createdAt: string
@@ -38,6 +41,7 @@ const CAT_LABEL: Record<string, string> = {
   cost_reduction: 'Cost',
   architecture_pattern: 'Arch',
   tool_or_library: 'Tool/lib',
+  claude_skill: 'Claude skill',
   other: 'Other',
 }
 const RISK_COLOR: Record<string, string> = {
@@ -172,6 +176,9 @@ export default function AiResearchPage() {
         {[
           ['new', 'New'],
           ['accepted', 'Accepted'],
+          ['queued', 'Queued'],
+          ['applying', 'Applying'],
+          ['apply_failed', 'Failed'],
           ['shipped', 'Shipped'],
           ['rejected', 'Rejected'],
           ['archived', 'Archived'],
@@ -472,16 +479,80 @@ export default function AiResearchPage() {
               </div>
             )}
             {selected.status === 'accepted' && (
-              <button
-                className="btn-primary"
-                style={{ fontSize: 12 }}
-                onClick={() => {
-                  const o = prompt('outcome / what shipped?') || ''
-                  act(selected._id, 'mark_shipped', { outcome: o })
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  className="btn-primary"
+                  style={{ fontSize: 12 }}
+                  onClick={() => act(selected._id, 'queue_for_apply')}
+                  title="Queue for the auto-apply worker (next run within 6h)"
+                  disabled={selected.riskLevel === 'high'}
+                >
+                  ⚡ Queue auto-apply
+                </button>
+                <button
+                  className="btn-ghost"
+                  style={{ fontSize: 12 }}
+                  onClick={() => {
+                    const o = prompt('outcome / what shipped?') || ''
+                    act(selected._id, 'mark_shipped', { outcome: o })
+                  }}
+                >
+                  ✓ Mark shipped manually
+                </button>
+              </div>
+            )}
+            {selected.status === 'queued' && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--font-dm-mono)' }}>
+                  in queue · worker runs every 6h
+                </span>
+                <button
+                  className="btn-ghost"
+                  style={{ fontSize: 12 }}
+                  onClick={() => act(selected._id, 'cancel_apply')}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {selected.status === 'applying' && (
+              <span style={{ fontSize: 11, color: '#f59e0b', fontFamily: 'var(--font-dm-mono)' }}>
+                ◌ worker running...
+              </span>
+            )}
+            {(selected.status === 'shipped' || selected.status === 'apply_failed') && selected.prUrl && (
+              <a
+                href={selected.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 12,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-dm-mono)',
+                  display: 'inline-block',
+                  marginTop: 4,
                 }}
               >
-                ✓ Mark shipped
-              </button>
+                PR #{selected.prNumber} ↗
+              </a>
+            )}
+            {selected.applyError && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 10,
+                  background: 'rgba(255,71,87,0.08)',
+                  border: '1px solid rgba(255,71,87,0.3)',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: '#FF4757',
+                  fontFamily: 'var(--font-dm-mono)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {selected.applyError}
+              </div>
             )}
             {selected.outcome && (
               <div

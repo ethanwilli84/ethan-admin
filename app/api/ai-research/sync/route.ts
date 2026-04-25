@@ -18,6 +18,9 @@ const SEARCH_QUERIES = [
   'AI web scraping tools Exa Firecrawl alternatives',
   'AI cost optimization LLM caching latency',
   'AI agent observability evaluation tools',
+  'Claude Code skills plugins marketplace github',
+  'Claude Code slash commands community repos',
+  'Claude Agent SDK examples tool use coding agents',
 ]
 
 type FeedbackDoc = { title?: string }
@@ -57,9 +60,11 @@ Score each 0-10:
 - 0-4: skip (don't return anything below 5)
 
 Risk levels:
-- low: prompt tweak, new fallback source, model swap → safe to auto-PR
-- medium: new API integration, new collection schema → ship as a GitHub issue
-- high: arch shift, cost/security/auth implications → flag only, no auto-action
+- low: prompt tweak inside an existing string literal, new fallback source added to an array, model name swap, new SEARCH_QUERIES entry → safe to auto-PR + auto-merge
+- medium: new API integration, new collection schema, new file → PR opens, manual merge
+- high: arch shift, cost/security/auth, anything touching auth/payments/secrets → flag only, no auto-action
+
+Categories include "claude_skill" for community Claude Code skills, plugins, or slash-command repos on GitHub that Ethan might want to install locally. For these, the proposedAction should be the install command (e.g. "/plugin marketplace add owner/repo" then "/plugin install <name>"). Mark as low risk (install only — Ethan reviews before invoking).
 
 Recent ACCEPTED findings (Ethan likes these patterns):
 ${acceptedTitles}

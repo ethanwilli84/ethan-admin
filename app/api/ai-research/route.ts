@@ -9,13 +9,16 @@ export interface AiFinding {
   summary: string
   url: string
   source: string                  // 'anthropic'|'openai'|'github'|'hn'|'producthunt'|'web'|'other'
-  category: 'prompt_improvement'|'new_data_source'|'new_api_unlock'|'cost_reduction'|'architecture_pattern'|'tool_or_library'|'other'
+  category: 'prompt_improvement'|'new_data_source'|'new_api_unlock'|'cost_reduction'|'architecture_pattern'|'tool_or_library'|'claude_skill'|'other'
   relevanceScore: number          // 0-10, how applicable to ethan-admin
   riskLevel: 'low'|'medium'|'high' // governs auto-PR vs issue vs Slack-only
   proposedAction: string          // concrete what-to-do
   proposedFiles: string[]         // candidate files in ethan-admin to touch
   rationale: string               // why this matters for Ethan's stack
-  status: 'new'|'reviewed'|'accepted'|'rejected'|'shipped'|'archived'
+  status: 'new'|'reviewed'|'accepted'|'rejected'|'queued'|'applying'|'shipped'|'apply_failed'|'archived'
+  prNumber?: number               // populated after apply worker opens PR
+  prUrl?: string
+  applyError?: string             // populated if gates failed
   outcome?: string                // free text after action taken
   outcomeMetric?: string          // optional metric link (reply rate, cost, etc)
   notes?: string[]
@@ -94,6 +97,54 @@ export async function POST(req: NextRequest) {
     await db.collection('ai_findings').updateOne(
       { _id: new ObjectId(body.id) },
       { $set: { status: 'shipped', outcome: body.outcome || '', outcomeMetric: body.metric || '', updatedAt: new Date() } }
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // Queue an accepted finding for the auto-apply worker.
+  if (action === 'queue_for_apply') {
+    await db.collection('ai_findings').updateOne(
+      { _id: new ObjectId(body.id) },
+      { $set: { status: 'queued', updatedAt: new Date() } }
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // Cancel a queued finding (move back to accepted).
+  if (action === 'cancel_apply') {
+    await db.collection('ai_findings').updateOne(
+      { _id: new ObjectId(body.id) },
+      { $set: { status: 'accepted', updatedAt: new Date() } }
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // Worker-only: report apply outcome (success → shipped, fail → apply_failed).
+  if (action === 'report_apply') {
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (body.success) {
+      set.status = 'shipped'
+      set.prNumber = body.prNumber
+      set.prUrl = body.prUrl
+      set.outcome = body.outcome || `auto-merged PR #${body.prNumber}`
+    } else {
+      set.status = 'apply_failed'
+      set.applyError = body.error || 'unknown'
+      if (body.prNumber) set.prNumber = body.prNumber
+      if (body.prUrl) set.prUrl = body.prUrl
+    }
+    await db.collection('ai_findings').updateOne(
+      { _id: new ObjectId(body.id) },
+      { $set: set }
+    )
+    return NextResponse.json({ ok: true })
+  }
+
+  // Worker-only: mark a queued finding as in-progress so two runs don't collide.
+  if (action === 'mark_applying') {
+    await db.collection('ai_findings').updateOne(
+      { _id: new ObjectId(body.id) },
+      { $set: { status: 'applying', updatedAt: new Date() } }
     )
     return NextResponse.json({ ok: true })
   }
