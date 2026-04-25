@@ -16,8 +16,8 @@ Score 8-10:
 - Tools/frameworks that could automate ops, CS, underwriting, or code at Sire/Alpine
 - BNPL or consumer credit regulation changes (CFPB, state usury laws, especially CA/NY/TX)
 - Private credit market moves: warehouse facility news, SOFR shifts, default trends
-- StockX, GOAT, Nike DTC strategy, major sneaker/streetwear industry stories
 - UPS/FedEx pricing or service changes (direct margin impact on Sire)
+- StockX/GOAT operational changes that hit Sire merchants directly (volume shifts, fee changes) — but NOT sneaker culture/release coverage
 - E-commerce volume data, consumer credit health indicators
 - AI infra fundraises (signal for valuations and partnership opportunities)
 - NYC-specific: Chelsea/Manhattan real estate, building safety, MTA disruptions affecting his commute
@@ -30,7 +30,8 @@ Score 8-10:
 Score 0-3:
 - AI ethics think pieces, AGI doom takes, academic papers without product implications
 - "10 ways AI will change [industry]" listicles
-- Generic celebrity, pop culture, sports (unless sneaker-adjacent)
+- Generic celebrity, pop culture, sports
+- Sneaker releases, streetwear drops, sneaker culture coverage — Ethan is over it
 - International tragedies with no direct impact on his life or businesses
 - "Person dies in [country]" type clickbait
 - Generic market coverage (S&P up 0.3%, Dow down)
