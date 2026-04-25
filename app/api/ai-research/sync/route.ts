@@ -1,8 +1,14 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/mongodb'
+import { sendSms, buildSwipeUrl, smsConfigured } from '@/lib/twilio'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
+const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || 'https://ethan-admin.ondigitalocean.app'
+
+// Threshold for SMS notification — only text findings worth deciding on.
+// Below this score they sit silently in /ai-research for batch review.
+const SMS_NOTIFY_MIN_SCORE = 7
 
 // ── Search topics — what we want surfaced every day ──────────────────────────
 // Tuned to ethan-admin's actual stack: Next.js, MongoDB, Anthropic API, Meta
@@ -158,13 +164,14 @@ async function runSync(req: NextRequest) {
         const exists = await db.collection('ai_findings').findOne({ url: f.url })
         if (exists) continue
 
-        await db.collection('ai_findings').insertOne({
+        const score = Math.max(0, Math.min(10, Number(f.relevanceScore)))
+        const insertResult = await db.collection('ai_findings').insertOne({
           title: String(f.title).slice(0, 200),
           summary: String(f.summary || '').slice(0, 1000),
           url: String(f.url).slice(0, 500),
           source: f.source || 'web',
           category: f.category || 'other',
-          relevanceScore: Math.max(0, Math.min(10, Number(f.relevanceScore))),
+          relevanceScore: score,
           riskLevel: ['low', 'medium', 'high'].includes(f.riskLevel) ? f.riskLevel : 'medium',
           proposedAction: String(f.proposedAction || '').slice(0, 800),
           proposedFiles: Array.isArray(f.proposedFiles) ? f.proposedFiles.slice(0, 10) : [],
@@ -175,6 +182,23 @@ async function runSync(req: NextRequest) {
           updatedAt: new Date(),
         })
         kept++
+
+        // Fire SMS for high-quality findings — fire and forget so we don't
+        // block the sync loop if Twilio is slow.
+        if (score >= SMS_NOTIFY_MIN_SCORE && smsConfigured()) {
+          const fid = insertResult.insertedId.toString()
+          const text = `🤖 AI finding (${score}/10, ${f.riskLevel}):\n${String(f.title).slice(0, 80)}\n\nSwipe: ${buildSwipeUrl(ADMIN_ORIGIN, fid)}`
+          sendSms(text)
+            .then(async (r) => {
+              if (r.ok) {
+                await db.collection('ai_findings').updateOne(
+                  { _id: insertResult.insertedId },
+                  { $set: { smsSentAt: new Date(), smsMessageSid: r.sid } }
+                )
+              }
+            })
+            .catch(() => {})
+        }
       }
       // Pace requests so we don't burn rate limit
       await new Promise((r) => setTimeout(r, 500))
