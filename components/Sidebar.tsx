@@ -19,6 +19,7 @@ import {
   DollarSign,
   Lock,
   Radio,
+  Sparkles,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react'
@@ -52,6 +53,7 @@ const NAV: NavGroup[] = [
       { label: 'Content', href: '/content', icon: Film },
       { label: 'Conversations', href: '/conversations', icon: MessageCircle },
       { label: 'AI Life OS', href: '/life-os', icon: Brain },
+      { label: 'AI Research', href: '/ai-research', icon: Sparkles },
       { label: 'Social Queue', href: '/social', icon: Camera },
       { label: 'Meta Ads', href: '/ads', icon: TrendingUp },
     ],
