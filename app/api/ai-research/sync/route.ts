@@ -158,6 +158,8 @@ async function runSync(req: NextRequest) {
   // Allow narrowing for testing — ?queries=2 runs only first 2 queries
   const limitQueries = parseInt(url.searchParams.get('queries') || '0')
   const queries = limitQueries > 0 ? SEARCH_QUERIES.slice(0, limitQueries) : SEARCH_QUERIES
+  // ?noSms=1 disables SMS for this run (used during development/testing)
+  const skipSms = url.searchParams.get('noSms') === '1'
 
   const feedback = await getFeedbackExamples()
   let total = 0
@@ -215,7 +217,7 @@ async function runSync(req: NextRequest) {
 
         // Fire SMS for high-quality findings — fire and forget so we don't
         // block the sync loop if Twilio is slow.
-        if (score >= SMS_NOTIFY_MIN_SCORE && smsConfigured()) {
+        if (!skipSms && score >= SMS_NOTIFY_MIN_SCORE && smsConfigured()) {
           const fid = insertResult.insertedId.toString()
           const text = `🤖 AI finding (${score}/10, ${f.riskLevel}):\n${String(f.title).slice(0, 80)}\n\nSwipe: ${buildSwipeUrl(ADMIN_ORIGIN, fid)}`
           sendSms(text)
