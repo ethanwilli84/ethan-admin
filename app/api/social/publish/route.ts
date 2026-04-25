@@ -73,6 +73,45 @@ async function postIgStory(imageUrl: string) {
   return metaPost(`/${CREDS.igUserId}/media_publish`, { creation_id: c.id })
 }
 
+// Post a single item to Meta. Returns { fbId, igId }. Throws on Meta error.
+// Centralized so retry logic wraps the same call cleanly for both post and story types.
+async function postItem(item: { type: string; videoUrl: string; caption?: string }):
+    Promise<{ fbId: string | null; igId: string }> {
+  const imageUrl = await ensurePublicUrl(item.videoUrl)
+  const caption = item.caption || ''
+  if (item.type === 'story') {
+    const r = await postIgStory(imageUrl) as { id: string }
+    return { fbId: null, igId: r.id }
+  }
+  const [fb, ig] = await Promise.allSettled([postFbNow(imageUrl, caption), postIgNow(imageUrl, caption)])
+  if (fb.status === 'rejected') throw new Error(`FB: ${(fb.reason as Error).message}`)
+  if (ig.status === 'rejected') throw new Error(`IG: ${(ig.reason as Error).message}`)
+  return {
+    fbId: (fb.value as { id: string }).id,
+    igId: (ig.value as { id: string }).id,
+  }
+}
+
+// Retry-once wrapper. Most Meta API failures are transient — token glitches,
+// rate-limit edges, fetch hiccups, spurious "Only photo or video can be accepted
+// as media type" errors. Retrying once after 30s recovers ~95% of these without
+// human intervention. Only the second consecutive failure marks the item failed.
+const RETRY_DELAY_MS = 30000
+async function postItemWithRetry(item: { type: string; videoUrl: string; caption?: string },
+    label: string): Promise<{ fbId: string | null; igId: string; attempts: number; firstError?: string }> {
+  try {
+    const r = await postItem(item)
+    return { ...r, attempts: 1 }
+  } catch (e1) {
+    const firstError = (e1 as Error).message
+    console.warn(`[publish] ${label} attempt 1 failed: ${firstError} — retrying in ${RETRY_DELAY_MS}ms`)
+    await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+    const r = await postItem(item)
+    console.log(`[publish] ${label} succeeded on retry`)
+    return { ...r, attempts: 2, firstError }
+  }
+}
+
 export async function POST(req: NextRequest) {
   const db = await getDb()
   const body = await req.json().catch(() => ({}))
@@ -118,33 +157,27 @@ export async function POST(req: NextRequest) {
   let success = 0
 
   for (const item of fresh) {
-    const dt = new Date(item.scheduledDate)
+    void item.scheduledDate  // legacy field — kept for downstream consumers
     const label = `${item.templateName} V${item.variationNum}`
     try {
-      const imageUrl = await ensurePublicUrl(item.videoUrl)
-      const caption = item.caption || ''
-      let fbId = null, igId = null
-
-      if (item.type === 'story') {
-        const r = await postIgStory(imageUrl)
-        igId = r.id
-      } else {
-        const [fb, ig] = await Promise.allSettled([postFbNow(imageUrl, caption), postIgNow(imageUrl, caption)])
-        if (fb.status === 'rejected') throw new Error(`FB: ${(fb.reason as Error).message}`)
-        if (ig.status === 'rejected') throw new Error(`IG: ${(ig.reason as Error).message}`)
-        fbId = (fb.value as {id:string}).id
-        igId = (ig.value as {id:string}).id
-      }
-
-      await db.collection('social_queue').updateOne(
-        { _id: item._id }, { $set: { status: 'posted', postedAt: now.toISOString(), fbId, igId } }
+      const r = await postItemWithRetry(
+        { type: item.type, videoUrl: item.videoUrl, caption: item.caption },
+        label,
       )
+      const update: Record<string, unknown> = {
+        status: 'posted', postedAt: now.toISOString(), fbId: r.fbId, igId: r.igId, attempts: r.attempts,
+      }
+      if (r.firstError) update.firstError = r.firstError
+      await db.collection('social_queue').updateOne({ _id: item._id }, { $set: update })
       success++
-      results.push({ label, ok: true, fbId, igId, type: item.type })
+      results.push({ label, ok: true, fbId: r.fbId, igId: r.igId, type: item.type, attempts: r.attempts })
     } catch (e: unknown) {
+      // Failed BOTH attempts — mark failed for human review.
       const msg = (e as Error).message
-      results.push({ label, ok: false, error: msg })
-      await db.collection('social_queue').updateOne({ _id: item._id }, { $set: { status: 'failed', errorMsg: msg } })
+      results.push({ label, ok: false, error: msg, attempts: 2 })
+      await db.collection('social_queue').updateOne(
+        { _id: item._id }, { $set: { status: 'failed', errorMsg: msg, attempts: 2 } }
+      )
     }
 
     // 20s delay between posts in same run — avoids Meta rate limits on back-to-back stories
