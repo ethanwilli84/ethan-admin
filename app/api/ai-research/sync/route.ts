@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
+import { ObjectId } from 'mongodb'
 import { getDb } from '@/lib/mongodb'
 import { sendSms, buildSwipeUrl, smsConfigured } from '@/lib/twilio'
 
@@ -165,6 +166,8 @@ async function runSync(req: NextRequest) {
   let total = 0
   let kept = 0
   const errors: string[] = []
+  // Aggregate notified-worthy findings to send ONE summary SMS at end of run.
+  const smsBatch: { id: string; title: string; score: number; risk: string }[] = []
 
   for (const q of queries) {
     try {
@@ -215,21 +218,15 @@ async function runSync(req: NextRequest) {
         })
         kept++
 
-        // Fire SMS for high-quality findings — fire and forget so we don't
-        // block the sync loop if Twilio is slow.
-        if (!skipSms && score >= SMS_NOTIFY_MIN_SCORE && smsConfigured()) {
-          const fid = insertResult.insertedId.toString()
-          const text = `🤖 AI finding (${score}/10, ${f.riskLevel}):\n${String(f.title).slice(0, 80)}\n\nSwipe: ${buildSwipeUrl(ADMIN_ORIGIN, fid)}`
-          sendSms(text)
-            .then(async (r) => {
-              if (r.ok) {
-                await db.collection('ai_findings').updateOne(
-                  { _id: insertResult.insertedId },
-                  { $set: { smsSentAt: new Date(), smsMessageSid: r.sid } }
-                )
-              }
-            })
-            .catch(() => {})
+        // Queue for the end-of-run summary SMS. We send ONE SMS per sync,
+        // not one per finding — Ethan got tired of his phone buzzing.
+        if (score >= SMS_NOTIFY_MIN_SCORE) {
+          smsBatch.push({
+            id: insertResult.insertedId.toString(),
+            title: String(f.title).slice(0, 80),
+            score,
+            risk: String(f.riskLevel || 'medium'),
+          })
         }
       }
       // Pace requests so we don't burn rate limit
@@ -239,12 +236,48 @@ async function runSync(req: NextRequest) {
     }
   }
 
+  // ── ONE summary SMS per run ────────────────────────────────────────────
+  // Format: "🤖 5 new findings (2 score≥9, 3 score≥7) — top: <title>"
+  // Single link to /swipe, no finding ID — highest-scored loads first.
+  let smsSent = false
+  if (!skipSms && smsBatch.length > 0 && smsConfigured()) {
+    smsBatch.sort((a, b) => b.score - a.score)
+    const top = smsBatch[0]
+    const high = smsBatch.filter((x) => x.score >= 9).length
+    const breakdown =
+      high > 0
+        ? `${smsBatch.length} new (${high} score≥9, ${smsBatch.length - high} score≥${SMS_NOTIFY_MIN_SCORE})`
+        : `${smsBatch.length} new findings (score≥${SMS_NOTIFY_MIN_SCORE})`
+    const text = [
+      `🤖 ${breakdown}`,
+      ``,
+      `Top: ${top.title} (${top.score}/10)`,
+      ``,
+      `Swipe through all: ${buildSwipeUrl(ADMIN_ORIGIN)}`,
+    ].join('\n')
+    try {
+      const r = await sendSms(text)
+      smsSent = !!r.ok
+      if (r.ok) {
+        // Mark all included findings as having been notified in this batch
+        await db.collection('ai_findings').updateMany(
+          { _id: { $in: smsBatch.map((x) => new ObjectId(x.id)) } },
+          { $set: { smsSentAt: new Date(), smsMessageSid: r.sid } }
+        )
+      }
+    } catch {
+      /* swallow — non-fatal */
+    }
+  }
+
   const elapsed = Math.round((Date.now() - startTime) / 1000)
   return NextResponse.json({
     ok: true,
     queriesRun: queries.length,
     findingsSurfaced: total,
     findingsKept: kept,
+    smsBatchedCount: smsBatch.length,
+    smsSent,
     errors,
     elapsedSeconds: elapsed,
   })
