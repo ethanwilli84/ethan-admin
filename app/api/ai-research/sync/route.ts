@@ -4,7 +4,7 @@ import { getDb } from '@/lib/mongodb'
 import { sendSms, buildSwipeUrl, smsConfigured } from '@/lib/twilio'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
-const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || 'https://ethan-admin.ondigitalocean.app'
+const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || 'https://ethan-admin-hlfdr.ondigitalocean.app'
 
 // Threshold for SMS notification — only text findings worth deciding on.
 // Below this score they sit silently in /ai-research for batch review.

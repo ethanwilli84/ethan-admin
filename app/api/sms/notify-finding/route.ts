@@ -4,7 +4,7 @@ import { getDb } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 import { sendSms, buildSwipeUrl, smsConfigured } from '@/lib/twilio'
 
-const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || 'https://ethan-admin.ondigitalocean.app'
+const ADMIN_ORIGIN = process.env.ADMIN_ORIGIN || 'https://ethan-admin-hlfdr.ondigitalocean.app'
 
 // POST /api/sms/notify-finding
 //   body: { id: string }
