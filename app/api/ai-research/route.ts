@@ -12,9 +12,16 @@ export interface AiFinding {
   category: 'prompt_improvement'|'new_data_source'|'new_api_unlock'|'cost_reduction'|'architecture_pattern'|'tool_or_library'|'claude_skill'|'other'
   relevanceScore: number          // 0-10, how applicable to ethan-admin
   riskLevel: 'low'|'medium'|'high' // governs auto-PR vs issue vs Slack-only
-  proposedAction: string          // concrete what-to-do
+  cost: 'free'|'freemium'|'paid'|'unknown' // free → no money, freemium → free tier exists, paid → costs from day 1
+  costDetail: string              // e.g. "free up to 10k req/mo, then $0.50/k"
+  requiresNewAccount: boolean     // does Ethan need to sign up for a new service?
+  accountSignupUrl?: string       // direct signup link if requiresNewAccount=true
+  summaryBullets: string[]        // 1-3 short bullets, replaces the prose summary on the card
+  proposedAction: string          // concrete what-to-do (still single line — used by apply worker)
+  actionBullets: string[]         // 2-4 short bullets — what to do, in order
   proposedFiles: string[]         // candidate files in ethan-admin to touch
   rationale: string               // why this matters for Ethan's stack
+  rationaleBullets: string[]      // 1-3 short bullets — render this on the card instead of prose
   status: 'new'|'reviewed'|'accepted'|'rejected'|'queued'|'applying'|'shipped'|'apply_failed'|'archived'
   prNumber?: number               // populated after apply worker opens PR
   prUrl?: string

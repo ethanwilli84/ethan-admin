@@ -4,20 +4,34 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 interface Finding {
   _id: string
   title: string
-  summary: string
+  summary?: string
+  summaryBullets?: string[]
   url: string
   source: string
   category: string
   relevanceScore: number
   riskLevel: 'low' | 'medium' | 'high'
+  cost?: 'free' | 'freemium' | 'paid' | 'unknown'
+  costDetail?: string
+  requiresNewAccount?: boolean
+  accountSignupUrl?: string
   proposedAction: string
+  actionBullets?: string[]
   rationale: string
+  rationaleBullets?: string[]
 }
 
 const RISK_COLOR: Record<string, string> = {
   low: '#00C896',
   medium: '#f59e0b',
   high: '#FF4757',
+}
+
+const COST_STYLE: Record<string, { color: string; label: string }> = {
+  free: { color: '#00C896', label: 'FREE' },
+  freemium: { color: '#3b82f6', label: 'FREEMIUM' },
+  paid: { color: '#FF4757', label: 'PAID' },
+  unknown: { color: '#888', label: 'COST?' },
 }
 
 export default function SwipePage() {
@@ -212,7 +226,7 @@ export default function SwipePage() {
           }}
         >
           {/* Score + risk pill */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div
               style={{
                 fontSize: 32,
@@ -239,16 +253,58 @@ export default function SwipePage() {
             </div>
           </div>
 
-          {/* Category + source chips */}
+          {/* Cost + account chips — front-and-center */}
           <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-            <span style={chipStyle()}>{finding.category.replace(/_/g, ' ')}</span>
+            {(() => {
+              const cs = COST_STYLE[finding.cost || 'unknown']
+              return (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: 4,
+                    color: cs.color,
+                    border: `1px solid ${cs.color}`,
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {cs.label}
+                </span>
+              )
+            })()}
+            {finding.requiresNewAccount && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  padding: '3px 9px',
+                  borderRadius: 4,
+                  color: '#f59e0b',
+                  border: '1px solid #f59e0b',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                NEEDS NEW ACCOUNT
+              </span>
+            )}
+            <span style={chipStyle()}>{(finding.category || '').replace(/_/g, ' ')}</span>
             <span style={chipStyle()}>{finding.source}</span>
           </div>
+
+          {/* Cost detail line */}
+          {finding.costDetail && (
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 12, fontFamily: 'monospace' }}>
+              💰 {finding.costDetail}
+            </div>
+          )}
 
           {/* Title */}
           <div
             style={{
-              fontSize: 22,
+              fontSize: 21,
               fontWeight: 600,
               lineHeight: 1.25,
               marginBottom: 14,
@@ -258,22 +314,73 @@ export default function SwipePage() {
             {finding.title}
           </div>
 
-          {/* Summary */}
-          <div style={{ fontSize: 15, lineHeight: 1.5, color: '#ccc', marginBottom: 18 }}>
-            {finding.summary}
-          </div>
+          {/* Summary — bullets if available, otherwise prose */}
+          {finding.summaryBullets && finding.summaryBullets.length > 0 ? (
+            <ul style={bulletListStyle()}>
+              {finding.summaryBullets.map((b, i) => (
+                <li key={i} style={bulletItemStyle('#ddd')}>
+                  {b}
+                </li>
+              ))}
+            </ul>
+          ) : finding.summary ? (
+            <div style={{ fontSize: 14, lineHeight: 1.5, color: '#ccc', marginBottom: 14 }}>{finding.summary}</div>
+          ) : null}
 
           {/* Why it matters */}
           <div style={sectionStyle()}>
             <div style={sectionLabelStyle()}>why it matters</div>
-            <div style={sectionTextStyle()}>{finding.rationale}</div>
+            {finding.rationaleBullets && finding.rationaleBullets.length > 0 ? (
+              <ul style={bulletListStyle()}>
+                {finding.rationaleBullets.map((b, i) => (
+                  <li key={i} style={bulletItemStyle('#bbb')}>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={sectionTextStyle()}>{finding.rationale}</div>
+            )}
           </div>
 
-          {/* Proposed action */}
+          {/* What to do */}
           <div style={sectionStyle()}>
-            <div style={sectionLabelStyle()}>proposed action</div>
-            <div style={sectionTextStyle()}>{finding.proposedAction}</div>
+            <div style={sectionLabelStyle()}>what to do</div>
+            {finding.actionBullets && finding.actionBullets.length > 0 ? (
+              <ul style={bulletListStyle()}>
+                {finding.actionBullets.map((b, i) => (
+                  <li key={i} style={bulletItemStyle('#bbb')}>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={sectionTextStyle()}>{finding.proposedAction}</div>
+            )}
           </div>
+
+          {/* Account signup CTA if needed */}
+          {finding.requiresNewAccount && finding.accountSignupUrl && (
+            <a
+              href={finding.accountSignupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                marginTop: 14,
+                padding: '8px 14px',
+                background: '#f59e0b',
+                color: '#000',
+                fontWeight: 600,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                borderRadius: 6,
+                textDecoration: 'none',
+              }}
+            >
+              ↗ sign up
+            </a>
+          )}
 
           {/* Source link */}
           <a
@@ -286,7 +393,7 @@ export default function SwipePage() {
               color: '#6366f1',
               wordBreak: 'break-all',
               display: 'block',
-              marginTop: 16,
+              marginTop: 14,
             }}
           >
             ↗ {finding.url}
@@ -427,6 +534,24 @@ function sectionLabelStyle(): React.CSSProperties {
 
 function sectionTextStyle(): React.CSSProperties {
   return { fontSize: 13, lineHeight: 1.5, color: '#bbb' }
+}
+
+function bulletListStyle(): React.CSSProperties {
+  return {
+    margin: 0,
+    paddingLeft: 18,
+    listStyle: 'disc',
+    color: '#bbb',
+  }
+}
+
+function bulletItemStyle(color: string): React.CSSProperties {
+  return {
+    fontSize: 13.5,
+    lineHeight: 1.45,
+    color,
+    marginBottom: 4,
+  }
 }
 
 function actionBtnStyle(): React.CSSProperties {

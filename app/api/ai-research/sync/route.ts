@@ -59,10 +59,16 @@ async function searchAndScore(query: string, feedback: { accepted: FeedbackDoc[]
 
 Your job: search the web for the query, then return 0-5 *concrete, actionable* findings — things Ethan can ship into ethan-admin or his Sire/Alpine stack. Skip generic "X company announces" hype. Skip stuff requiring infra rewrites.
 
-Score each 0-10:
-- 9-10: drop-in unlock for an open thread (Apollo integration, Gmail API body search, ad creative generation, GHL webhook, LinkedIn outreach)
-- 7-8: clear improvement to existing system (cheaper model, better prompt, new web-search source)
-- 5-6: nice-to-have, requires non-trivial work
+CRITICAL CONSTRAINT — Ethan strongly prefers FREE solutions and hates managing new subscriptions. When scoring:
+- A free or already-paid-for tool: score normally
+- A freemium tool with a usable free tier: -1 from score
+- A paid tool requiring a NEW account/subscription: -2 from score (and only include if truly drop-in valuable)
+- If you can't determine cost, search again to find out — do not guess
+
+Score each 0-10 (after the cost adjustment above):
+- 9-10: drop-in unlock for an open thread, free or already-paid
+- 7-8: clear improvement to existing system, free or trivial cost
+- 5-6: nice-to-have, requires non-trivial work or a paid signup
 - 0-4: skip (don't return anything below 5)
 
 Risk levels:
@@ -72,6 +78,8 @@ Risk levels:
 
 Categories include "claude_skill" for community Claude Code skills, plugins, or slash-command repos on GitHub that Ethan might want to install locally. For these, the proposedAction should be the install command (e.g. "/plugin marketplace add owner/repo" then "/plugin install <name>"). Mark as low risk (install only — Ethan reviews before invoking).
 
+WRITING STYLE — Ethan reads these on his phone via SMS-triggered swipe cards. Bullets, not paragraphs. Each bullet ≤ 12 words. No marketing-speak. Be terse and concrete.
+
 Recent ACCEPTED findings (Ethan likes these patterns):
 ${acceptedTitles}
 
@@ -80,16 +88,22 @@ ${rejectedTitles}
 
 Return ONLY a JSON array, no markdown, no prose. Schema:
 [{
-  "title": "short, specific",
-  "summary": "2-3 sentences, what it is",
+  "title": "short, specific (≤ 60 chars)",
+  "summaryBullets": ["≤12 words", "≤12 words", "≤12 words"],
   "url": "best canonical link",
   "source": "anthropic|openai|github|hn|producthunt|web|other",
-  "category": "prompt_improvement|new_data_source|new_api_unlock|cost_reduction|architecture_pattern|tool_or_library|other",
+  "category": "prompt_improvement|new_data_source|new_api_unlock|cost_reduction|architecture_pattern|tool_or_library|claude_skill|other",
   "relevanceScore": 0-10,
   "riskLevel": "low|medium|high",
-  "proposedAction": "concrete: what file/feature to change in ethan-admin",
+  "cost": "free|freemium|paid|unknown",
+  "costDetail": "specific: 'free' OR '$X/mo' OR 'free up to N req/mo, then $X' OR 'free for personal use, $X for commercial'",
+  "requiresNewAccount": true/false,
+  "accountSignupUrl": "https://... (only if requiresNewAccount=true)",
+  "proposedAction": "single line: what file/feature to change",
+  "actionBullets": ["step 1 in ≤12 words", "step 2 in ≤12 words"],
   "proposedFiles": ["app/api/...", "lib/..."],
-  "rationale": "why this matters for Ethan's stack specifically"
+  "rationale": "single line: why this matters for Ethan",
+  "rationaleBullets": ["≤12 words", "≤12 words"]
 }]
 If nothing meets bar 5+, return [].`
 
@@ -165,17 +179,33 @@ async function runSync(req: NextRequest) {
         if (exists) continue
 
         const score = Math.max(0, Math.min(10, Number(f.relevanceScore)))
+        const cleanBullets = (arr: unknown): string[] => {
+          if (!Array.isArray(arr)) return []
+          return arr
+            .map((s) => String(s || '').trim())
+            .filter((s) => s.length > 0)
+            .slice(0, 5)
+            .map((s) => s.slice(0, 120))
+        }
         const insertResult = await db.collection('ai_findings').insertOne({
           title: String(f.title).slice(0, 200),
-          summary: String(f.summary || '').slice(0, 1000),
+          // Keep prose fields as fallback for old-format consumers (apply worker)
+          summary: String(f.summary || (Array.isArray(f.summaryBullets) ? f.summaryBullets.join(' · ') : '')).slice(0, 1000),
+          summaryBullets: cleanBullets(f.summaryBullets),
           url: String(f.url).slice(0, 500),
           source: f.source || 'web',
           category: f.category || 'other',
           relevanceScore: score,
           riskLevel: ['low', 'medium', 'high'].includes(f.riskLevel) ? f.riskLevel : 'medium',
+          cost: ['free', 'freemium', 'paid', 'unknown'].includes(f.cost) ? f.cost : 'unknown',
+          costDetail: String(f.costDetail || '').slice(0, 200),
+          requiresNewAccount: Boolean(f.requiresNewAccount),
+          accountSignupUrl: f.accountSignupUrl ? String(f.accountSignupUrl).slice(0, 500) : undefined,
           proposedAction: String(f.proposedAction || '').slice(0, 800),
+          actionBullets: cleanBullets(f.actionBullets),
           proposedFiles: Array.isArray(f.proposedFiles) ? f.proposedFiles.slice(0, 10) : [],
           rationale: String(f.rationale || '').slice(0, 500),
+          rationaleBullets: cleanBullets(f.rationaleBullets),
           status: 'new',
           searchQuery: q,
           createdAt: new Date(),
