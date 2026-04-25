@@ -31,11 +31,26 @@ GH_TOKEN = os.environ["GH_PR_TOKEN"]
 GH_REPO = os.environ.get("GH_REPO", "ethanwilli84/ethan-admin")
 ENABLED = os.environ.get("AI_AUTO_APPLY_ENABLED", "false").lower() == "true"
 
-# Files the worker is allowed to modify. Start narrow, expand only when trust
-# is established. Note: list mods to this file itself are NOT allowed.
+# HARD GUARD: this worker is only allowed to push to ethan-admin. Sire and
+# Alpine repos are off-limits forever. If GH_REPO is misconfigured the worker
+# refuses to run.
+ALLOWED_REPOS = {"ethanwilli84/ethan-admin"}
+
+# Files the worker is allowed to modify. Anything not in this allowlist is
+# rejected before the diff is applied. List mods to the apply worker itself
+# (this script + the workflow) are NOT allowed — has to be a manual change.
 ALLOWED_FILES = {
+    # AI research worker — meta-improves its own search queries / scoring
     "app/api/ai-research/sync/route.ts",
+    # Issue ingestion — skip patterns + classification prompts
     "app/api/sync-issues/route.ts",
+    # General-purpose AI analysis routes (prompt tuning is the common change)
+    "app/api/analyze/route.ts",
+    "app/api/content-analyze/route.ts",
+    # Outreach & lead-finding prompts
+    "app/api/gmail-replies/route.ts",
+    "app/api/lead-discover/route.ts",
+    "app/api/generate-campaign/route.ts",
 }
 
 # Substrings that disqualify a diff line from being added/removed. Cheap defense
@@ -249,6 +264,9 @@ def main():
     if not ENABLED:
         print("AI_AUTO_APPLY_ENABLED!=true — skipping run.")
         return 0
+    if GH_REPO not in ALLOWED_REPOS:
+        print(f"REFUSING: GH_REPO={GH_REPO} not in {sorted(ALLOWED_REPOS)}")
+        return 1
 
     finding = get_one_queued()
     if not finding:
