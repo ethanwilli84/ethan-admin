@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { Roboto, Roboto_Mono } from 'next/font/google'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
@@ -23,17 +24,30 @@ const robotoMono = Roboto_Mono({
 
 export const metadata: Metadata = { title: 'Ethan Admin' }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const h = await headers()
+  const pathname = h.get('x-pathname') || ''
+  const publicHost = h.get('x-public-host') === '1'
+
+  // /ups is partner-facing — render without admin chrome.
+  const isPublic = publicHost || pathname.startsWith('/ups')
+
   return (
     <html lang="en" className={`${roboto.variable} ${robotoMono.variable}`}>
       <body>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
-          <Sidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            {children}
-          </div>
-        </div>
-        <DevPanel />
+        {isPublic ? (
+          children
+        ) : (
+          <>
+            <div style={{ display: 'flex', minHeight: '100vh' }}>
+              <Sidebar />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                {children}
+              </div>
+            </div>
+            <DevPanel />
+          </>
+        )}
       </body>
     </html>
   )
