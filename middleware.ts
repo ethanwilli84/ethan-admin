@@ -8,7 +8,7 @@ export function middleware(req: NextRequest) {
   if (host.startsWith('ups.sireapp.io') || host.startsWith('ups.sireapp.io.')) {
     // Allow API + asset passthrough
     if (
-      url.pathname.startsWith('/api/ups') ||
+      url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/_next') ||
       url.pathname.startsWith('/favicon') ||
       url.pathname === '/icon.svg'

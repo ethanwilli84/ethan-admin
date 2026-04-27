@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { ITEMS, type AskItem } from './data'
+import UpsGate from './UpsGate'
 import './ups.css'
 
 type ItemState = {
@@ -68,6 +69,7 @@ export default function UpsPage() {
   const totalAsks = ITEMS.length
 
   return (
+    <UpsGate>
     <div className="ups-page">
       <div className="ups-container">
         <div className="hero">
@@ -176,6 +178,7 @@ export default function UpsPage() {
         </div>
       </div>
     </div>
+    </UpsGate>
   )
 }
 
