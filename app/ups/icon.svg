@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="sireGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2c5c"/>
+      <stop offset="50%" stop-color="#4a3c8c"/>
+      <stop offset="100%" stop-color="#6b3fa0"/>
+    </linearGradient>
+    <linearGradient id="sShine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="url(#sireGrad)"/>
+  <text x="32" y="46"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, Helvetica, Arial, sans-serif"
+        font-size="46"
+        font-weight="800"
+        font-style="italic"
+        text-anchor="middle"
+        fill="url(#sShine)"
+        letter-spacing="-1">S</text>
+</svg>
