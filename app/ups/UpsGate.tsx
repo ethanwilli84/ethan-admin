@@ -5,10 +5,12 @@ const STORAGE_KEY = 'ups-access-v1'
 const PASSWORD = '2026'
 
 type Stored = { name: string; ts: number }
+type Step = 'code' | 'name'
 
 export default function UpsGate({ children }: { children: ReactNode }) {
   const [unlocked, setUnlocked] = useState(false)
   const [checked, setChecked] = useState(false)
+  const [step, setStep] = useState<Step>('code')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -34,16 +36,22 @@ export default function UpsGate({ children }: { children: ReactNode }) {
     return <>{children}</>
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (password !== PASSWORD) {
+      setError('Incorrect access code.')
+      return
+    }
+    setStep('name')
+  }
+
+  const handleNameSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     const trimmedName = name.trim()
     if (trimmedName.length < 2) {
       setError('Please enter your full name.')
-      return
-    }
-    if (password !== PASSWORD) {
-      setError('Incorrect password.')
       return
     }
     setSubmitting(true)
@@ -74,40 +82,55 @@ export default function UpsGate({ children }: { children: ReactNode }) {
           style={styles.logo}
         />
         <div style={styles.eyebrow}>UPS partnership priorities</div>
-        <h1 style={styles.heading}>Sign in to view</h1>
+        <h1 style={styles.heading}>
+          {step === 'code' ? 'Enter access code' : 'Confirm your name'}
+        </h1>
         <p style={styles.sub}>
-          Confidential to Sire Apps LLC and the recipient. Enter your full name and the access
-          password to continue.
+          {step === 'code'
+            ? 'Confidential to Sire Apps LLC and the recipient. Enter the access code to continue.'
+            : 'Enter your full name to view the partnership priorities page.'}
         </p>
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
-            Your full name
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Jeannie Smith"
-              autoFocus
-              autoComplete="name"
-              style={styles.input}
-            />
-          </label>
-          <label style={styles.label}>
-            Access password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Provided by Ethan"
-              autoComplete="off"
-              style={styles.input}
-            />
-          </label>
-          {error && <div style={styles.error}>{error}</div>}
-          <button type="submit" disabled={submitting} style={styles.button}>
-            {submitting ? 'Verifying…' : 'Continue'}
-          </button>
-        </form>
+
+        {step === 'code' ? (
+          <form onSubmit={handleCodeSubmit} style={styles.form}>
+            <label style={styles.label}>
+              Access code
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="123456"
+                autoFocus
+                autoComplete="off"
+                style={styles.input}
+              />
+            </label>
+            {error && <div style={styles.error}>{error}</div>}
+            <button type="submit" style={styles.button}>
+              Continue
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleNameSubmit} style={styles.form}>
+            <label style={styles.label}>
+              Your full name
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Type your full name"
+                autoFocus
+                autoComplete="name"
+                style={styles.input}
+              />
+            </label>
+            {error && <div style={styles.error}>{error}</div>}
+            <button type="submit" disabled={submitting} style={styles.button}>
+              {submitting ? 'Verifying…' : 'Continue'}
+            </button>
+          </form>
+        )}
+
         <div style={styles.footnote}>
           By signing in, you acknowledge the contents of this page are confidential.
         </div>
