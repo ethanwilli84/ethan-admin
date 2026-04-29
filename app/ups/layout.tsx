@@ -1,17 +1,9 @@
 import type { Metadata } from 'next'
 
+// Favicon comes from the colocated app/ups/icon.png
+// (Next.js App Router auto-detects icon.png/jpg/svg inside a route segment.)
 export const metadata: Metadata = {
   title: 'UPS x Sire Contract',
-  icons: {
-    icon: [
-      {
-        url: 'https://sireship.com/assets/images/logo.png',
-        type: 'image/png',
-      },
-    ],
-    shortcut: 'https://sireship.com/assets/images/logo.png',
-    apple: 'https://sireship.com/assets/images/logo.png',
-  },
 }
 
 export default function UpsLayout({ children }: { children: React.ReactNode }) {
