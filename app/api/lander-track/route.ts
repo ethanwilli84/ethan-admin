@@ -231,6 +231,10 @@ export async function POST(req: NextRequest) {
     // sight (createdAt, attribution snapshot, variant), $set for things that
     // always reflect the latest seen value (lastSeenAt), and $max for the
     // step-rank watermark so we always have the deepest step the user got to.
+    // NOTE: don't pre-seed `quizAnswers: {}` here. If we did, an upsert that
+    // also tries to `$set: { 'quizAnswers.q1_avg_weight': ... }` would hit a
+    // Mongo path-conflict error ("Updating the path 'quizAnswers.X' would
+    // create a conflict at 'quizAnswers'"). Let the nested field auto-vivify.
     const setOnInsert: Partial<LanderSession> = {
       sessionId,
       variant:    body.variant || 'control',
@@ -251,7 +255,6 @@ export async function POST(req: NextRequest) {
         clientIp,
         clientUserAgent: clientUa,
       },
-      quizAnswers: {},
     }
     const set: Record<string, unknown> = { lastSeenAt: now }
     const setStepName: Record<string, unknown> = {}
@@ -285,16 +288,14 @@ export async function POST(req: NextRequest) {
       quizSet[`quizAnswers.${body.question}`] = body.answer
     }
 
-    await sessColl.updateOne(
-      { sessionId },
-      {
-        $setOnInsert: setOnInsert,
-        $set:         { ...set, ...setStepName, ...quizSet },
-        $inc:         inc,
-        $max:         Object.keys(max).length ? max : { highestStepRank: stepRank >= 0 ? stepRank : 0 },
-      },
-      { upsert: true },
-    ).catch(e => console.warn('[lander-track] session upsert failed', e))
+    const update: Record<string, unknown> = {
+      $setOnInsert: setOnInsert,
+      $set:         { ...set, ...setStepName, ...quizSet },
+      $inc:         inc,
+    }
+    if (Object.keys(max).length) update.$max = max
+    await sessColl.updateOne({ sessionId }, update, { upsert: true })
+      .catch(e => console.warn('[lander-track] session upsert failed', e))
   } catch (e) {
     console.warn('[lander-track] mongo logging failed', e)
   }
