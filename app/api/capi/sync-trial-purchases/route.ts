@@ -101,8 +101,8 @@ async function runSync(req: NextRequest) {
     sentItems: [] as Array<{ userId: string; tier: string; value: number; eventId: string }>,
   }
 
-  for (const u of pending) {
-    const userId = u._id.toString()
+  for (const u of pending as SireUser[]) {
+    const userId = String(u._id)
 
     // Skip records with no phone/email — CAPI requires at least one identifier
     if (!u.phone && !u.email) {
