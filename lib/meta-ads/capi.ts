@@ -8,7 +8,11 @@ const API_VERSION = 'v20.0'
 // Each event can be dedup'd with the browser pixel using event_id
 
 export type CapiEvent = {
-  event_name: 'Lead' | 'CompleteRegistration' | 'Purchase' | 'Subscribe' | 'PageView' | 'ViewContent'
+  event_name:
+    | 'Lead' | 'CompleteRegistration' | 'Purchase' | 'Subscribe' | 'StartTrial'
+    | 'PageView' | 'ViewContent'
+    | 'InitiateCheckout' | 'AddToCart' | 'AddPaymentInfo'
+    | 'Search' | 'Contact'
   event_time: number          // unix seconds
   event_id?: string           // for dedup with browser pixel
   event_source_url?: string   // page where event occurred
