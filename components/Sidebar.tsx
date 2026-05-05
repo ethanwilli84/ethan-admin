@@ -24,6 +24,7 @@ import {
   Rss,
   PanelLeftClose,
   PanelLeft,
+  Funnel,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -58,6 +59,7 @@ const NAV: NavGroup[] = [
       { label: 'AI Research', href: '/ai-research', icon: Sparkles },
       { label: 'Social Queue', href: '/social', icon: Camera },
       { label: 'Meta Ads', href: '/ads', icon: TrendingUp },
+      { label: 'Lander Funnel', href: '/landings', icon: Funnel },
     ],
   },
   {
