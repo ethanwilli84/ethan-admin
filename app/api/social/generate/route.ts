@@ -101,6 +101,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Optional reverse — used to offset accounts sharing the same templates
+    // so they never land on the same (template, variation) on the same day.
+    const reverseSequence = !!(settings[`reverseSequence_${type}`] || settings.reverseSequence?.[type])
+    if (reverseSequence) sequence.reverse()
+
     // Generate all dates from tomorrow to yearsAhead years out
     const startDate = new Date()  // start from today
     const endDate   = addDays(new Date(), yearsAhead * 365)
