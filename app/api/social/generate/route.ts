@@ -28,7 +28,7 @@ function getETOffsetMin(d: Date): number {
 }
 
 function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: string; to: string }): Date {
-  let localH: number, localM: number
+  let localH: number, localM: number, localS = 0
   if (randomRange?.enabled) {
     const [fh, fm] = randomRange.from.split(':').map(Number)
     const [th, tm] = randomRange.to.split(':').map(Number)
@@ -43,11 +43,11 @@ function toET(d: Date, timeStr: string, randomRange?: { enabled: boolean; from: 
     localH = Math.floor(mins / 60); localM = mins % 60
   } else {
     const parts = timeStr.split(':').map(Number)
-    localH = parts[0]; localM = parts[1]
+    localH = parts[0] || 0; localM = parts[1] || 0; localS = parts[2] || 0
   }
   // Convert ET local → UTC
   // ET is UTC-4 (EDT) or UTC-5 (EST), so UTC = ET_local + abs(offset)
-  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, 0)
+  const base = new Date(d.getFullYear(), d.getMonth(), d.getDate(), localH, localM, localS)
   const etOffsetMin = getETOffsetMin(base)  // returns -240 (EDT) or -300 (EST)
   return new Date(base.getTime() + Math.abs(etOffsetMin) * 60000)
 }
