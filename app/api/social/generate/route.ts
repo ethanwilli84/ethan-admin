@@ -80,21 +80,24 @@ export async function POST(req: NextRequest) {
       continue
     }
 
-    // Build interleaved sequence: T1V1, T2V1, T3V1, T1V2, T2V2...
+    // DIAGONAL sequence so every consecutive post = different template AND different variation index.
+    // Round R produces: T1V(R), T2V(R+1), T3V(R+2), T4V(R+3) (mod V_t).
+    // After V rounds every (template, variation) combo is used exactly once before any repeat.
     const maxVar = Math.max(...templates.map((t) => (t.variations || []).length))
     const sequence: { templateId: string; templateName: string; variationNum: number; videoUrl: string; caption: string }[] = []
-    for (let vi = 0; vi < maxVar; vi++) {
-      for (const tmpl of templates) {
+    for (let round = 0; round < maxVar; round++) {
+      for (let ti = 0; ti < templates.length; ti++) {
+        const tmpl = templates[ti]
         const vs = tmpl.variations || []
-        if (vi < vs.length) {
-          sequence.push({
-            templateId: tmpl._id.toString(),
-            templateName: tmpl.name,
-            variationNum: vs[vi].variationNum ?? vi + 1,
-            videoUrl: vs[vi].url || '',
-            caption: tmpl.caption || '',
-          })
-        }
+        if (!vs.length) continue
+        const vi = (round + ti) % vs.length
+        sequence.push({
+          templateId: tmpl._id.toString(),
+          templateName: tmpl.name,
+          variationNum: vs[vi].variationNum ?? vi + 1,
+          videoUrl: vs[vi].url || '',
+          caption: tmpl.caption || '',
+        })
       }
     }
 
