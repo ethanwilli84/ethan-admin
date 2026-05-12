@@ -16,12 +16,21 @@ export const maxDuration = 300  // 5 minutes — aggregation + Meta pushes
 // user.profit / user.spent / user.numberOfShipments fields on the user doc
 // are known to be stale/race-conditional and are NOT read here.
 //
-// The 5 seeds:
+// The seeds:
 //   sire_active_21d_top_quartile   — 21d active, top 25% profit, 5+ ships
 //   sire_active_21d_all            — 21d active, 5+ ships
 //   sire_alltime_top_quartile      — top 25% profit all-time, 5+ ships
 //   sire_historical_ad_converters  — past users from ad referrals (referral/knowUs)
 //   sire_all_merchants_EXCLUSION   — anyone with 1+ shipment (to suppress in prospecting)
+//   sire_alltime_value             — all 5+-ship merchants WITH LTV (profit)
+//   sire_active_21d_value          — 21d active 5+-ship merchants WITH LTV (profit)
+//   sire_historical_ad_converters_value — historical ad converters WITH LTV
+//
+// Value-based audiences (`_value` suffix) carry a per-user LTV (= shipments
+// profit). Meta uses LTV to weight LAL construction: bigger LTV → stronger
+// "find more like this user" pull. Required to be `is_value_based: true` at
+// creation, which is why these are parallel new audiences rather than the
+// existing ones being modified in place.
 
 type ShipAgg = {
   _id: unknown  // ObjectId — the user who owns these shipments
@@ -187,6 +196,44 @@ export async function POST(req: NextRequest) {
       description: `All merchants with at least one shipment. Use as prospecting EXCLUSION. Built ${startedAt.toISOString()}.`,
       users: allMerchantUsers.map((u) => ({ phone: u.phone, email: u.email })),
     },
+    // ── VALUE-BASED audiences — LTV per user, used for value-weighted LALs ──
+    // Same population filters as the non-value seeds above, but each row
+    // carries the user's lifetime profit (margin Sire has actually captured
+    // from their shipments). Meta uses this LTV column to bias LAL construction
+    // toward higher-value patterns.
+    {
+      name: 'sire_alltime_value',
+      description: `All-time 5+-ship merchants WITH LTV (profit). Use as value-based LAL seed. Built ${startedAt.toISOString()}.`,
+      isValueBased: true,
+      users: enriched.map((e) => ({
+        phone: e.user.phone,
+        email: e.user.email,
+        value: e.profit,
+      })),
+    },
+    {
+      name: 'sire_active_21d_value',
+      description: `21d-active 5+-ship merchants WITH LTV (profit). Use as value-based LAL seed (currently engaged). Built ${startedAt.toISOString()}.`,
+      isValueBased: true,
+      users: active21d.map((e) => ({
+        phone: e.user.phone,
+        email: e.user.email,
+        value: e.profit,
+      })),
+    },
+    {
+      name: 'sire_historical_ad_converters_value',
+      description: `Historical ad-attributed users WITH LTV (joined to shipments profit when available; 0 otherwise). Built ${startedAt.toISOString()}.`,
+      isValueBased: true,
+      users: adConverterUsers.map((u) => {
+        const ship = enriched.find((e) => String(e._id) === String(u._id))
+        return {
+          phone: u.phone,
+          email: u.email,
+          value: ship?.profit || 0,
+        }
+      }),
+    },
   ]
 
   const results: Array<{
@@ -210,6 +257,7 @@ export async function POST(req: NextRequest) {
       const audience = await getOrCreateCustomAudience({
         name: seed.name,
         description: seed.description,
+        isValueBased: (seed as { isValueBased?: boolean }).isValueBased,
       })
       row.audienceId = audience.id
       row.created = audience.created
@@ -217,6 +265,7 @@ export async function POST(req: NextRequest) {
         row.pushed = await pushAudienceUsers({
           audienceId: audience.id,
           users: seed.users,
+          isValueBased: (seed as { isValueBased?: boolean }).isValueBased,
         })
       } else {
         row.pushed = 0
