@@ -51,6 +51,8 @@ const STEP_RANK: Record<string, number> = {
 const ALLOWED_ORIGINS = new Set([
   'https://waitroom.sireapp.io',
   'http://waitroom.sireapp.io',
+  'https://sireapp.io',
+  'http://sireapp.io',
   // Local dev convenience — comment out before going public-facing only
   'http://localhost:3000',
   'http://localhost:8080',
