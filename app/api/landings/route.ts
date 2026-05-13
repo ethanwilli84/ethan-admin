@@ -25,25 +25,34 @@ export async function GET(req: NextRequest) {
   const sess = db.collection('lander_sessions')
 
   const q: Record<string, unknown> = {}
-  if (variant)    q.variant = variant
+  // Default: exclude `variant=home` (nurture-page sessions live at /landings/home).
+  // Caller can opt back in by explicitly passing variant=home.
+  if (variant) q.variant = variant
+  else         q.variant = { $ne: 'home' }
   if (fromIso)    q.createdAt = { $gte: new Date(fromIso) }
   if (minStep > -1) q.highestStepRank = { $gte: minStep }
   if (utmContent) q['attribution.utm_content'] = utmContent
 
+  // Same default exclusion applies to the totals — otherwise nurture sessions
+  // inflate the "all" count even though they have no funnel signal.
+  const totalsFilter = { variant: { $ne: 'home' } }
+
   const [sessions, totalAll, totalSavings, totalTier, totalCardOpen, totalCardSubmit, totalTrial, byStep, byVariant] =
     await Promise.all([
       sess.find(q).sort({ lastSeenAt: -1 }).limit(limit).toArray(),
-      sess.countDocuments({}),
-      sess.countDocuments({ reachedSavings: true }),
-      sess.countDocuments({ reachedTierSelect: true }),
-      sess.countDocuments({ cardPopupOpened: true }),
-      sess.countDocuments({ cardSubmitted: true }),
-      sess.countDocuments({ trialStarted: true }),
+      sess.countDocuments(totalsFilter),
+      sess.countDocuments({ ...totalsFilter, reachedSavings: true }),
+      sess.countDocuments({ ...totalsFilter, reachedTierSelect: true }),
+      sess.countDocuments({ ...totalsFilter, cardPopupOpened: true }),
+      sess.countDocuments({ ...totalsFilter, cardSubmitted: true }),
+      sess.countDocuments({ ...totalsFilter, trialStarted: true }),
       sess.aggregate([
+        { $match: totalsFilter },
         { $group: { _id: '$highestStepName', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]).toArray(),
       sess.aggregate([
+        { $match: totalsFilter },
         { $group: {
             _id: '$variant',
             sessions: { $sum: 1 },

@@ -102,18 +102,22 @@ export default function LandingsPage() {
     <div style={{ padding: '32px 28px', maxWidth: 1400, margin: '0 auto' }}>
       <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>Lander funnel</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>Lander funnel — /checkout</h1>
           <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
-            Per-session quiz answers, step depth, attribution, and conversion signals from waitroom.sireapp.io/checkout.
+            Per-session quiz answers, step depth, attribution, and conversion signals from waitroom.sireapp.io/checkout (the Meta-ad quiz lander).
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Link href="/landings/home" style={{ fontSize: 13, color: '#555', textDecoration: 'none', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6 }}>
+            → Nurture engagement
+          </Link>
           <select value={variant} onChange={e => setVariant(e.target.value)}
                   style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
             <option value="">All variants</option>
             <option value="A">A (control)</option>
             <option value="B">B (treatment)</option>
-            <option value="control">control</option>
+            <option value="control">control (lander)</option>
+            <option value="home">home (waitroom.sireapp.io/)</option>
           </select>
           <select value={minStep} onChange={e => setMinStep(e.target.value)}
                   style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}>
