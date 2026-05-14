@@ -34,15 +34,17 @@ export async function POST(req: NextRequest) {
   const db = await getDb()
   const { id, today = false } = await req.json()
 
-  // Determine which items to post
+  // Determine which items to post.
+  // When today=true, only items whose scheduled time is already due (<= now)
+  // should publish — otherwise the cron firing at 16:00 ET would publish all
+  // of today's items immediately, including ones scheduled for later in the day.
   let filter: Record<string, unknown> = { status: 'scheduled' }
   if (id) {
     filter = { _id: new ObjectId(id), status: 'scheduled' }
   } else if (today) {
-    const d = new Date()
-    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
-    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).toISOString()
-    filter = { status: 'scheduled', scheduledDate: { $gte: start, $lt: end } }
+    const now = new Date()
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
+    filter = { status: 'scheduled', scheduledDate: { $gte: start, $lte: now.toISOString() } }
   }
 
   if (!IG_USER_ID || !IG_TOKEN) {

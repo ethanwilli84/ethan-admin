@@ -12,7 +12,21 @@ Usage: python3 batch_scheduler.py [--dry-run] [--account sire-ship] [--type post
 
 import os, sys, json, time, shutil, tempfile, atexit, subprocess, urllib.request, argparse
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+# social_queue.scheduledDate is stored as UTC ISO ("...Z"). Meta Business Suite's
+# scheduler takes wall-clock time in the account's local TZ (ET). Convert here.
+ET = ZoneInfo("America/New_York")
+
+def parse_sched(iso_str: str) -> datetime:
+    """Parse a UTC scheduledDate string to a naive ET datetime suitable for
+    pasting into Meta Business Suite's date/time inputs."""
+    s = iso_str.replace("Z", "+00:00") if iso_str.endswith("Z") else iso_str
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ET).replace(tzinfo=None)
 
 # ─── paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR   = Path(__file__).parent
@@ -124,7 +138,7 @@ def schedule_posts_bulk(driver, account: dict, items: list) -> dict:
     for idx, item in enumerate(items):
         file_path = item["videoUrl"]
         caption   = item.get("caption", "")
-        sched_dt  = datetime.fromisoformat(item["scheduledDate"].replace("Z", ""))
+        sched_dt  = parse_sched(item["scheduledDate"])
         label     = f"{item.get('templateName','?')} V{item.get('variationNum','?')}"
 
         log(f"\n  Row {idx+1}/{len(items)}: {label} → {sched_dt.strftime('%a %b %d at %I:%M %p')}")
@@ -321,7 +335,7 @@ def get_confirmed_dates(account_id: str, content_type: str) -> set:
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def run(args):
-    start = datetime.now()
+    start = datetime.now(timezone.utc)
     log("=" * 60)
     log(f"Batch Scheduler — {start.strftime('%a %b %d %Y %I:%M %p')}")
     log("=" * 60)
@@ -332,14 +346,26 @@ def run(args):
     except Exception as e:
         log(f"Failed to load accounts: {e}"); return
 
-    # Fetch scheduled queue items for the next 30 days
+    # Fetch scheduled queue items for the next 30 days.
+    # Compare in ET (matches scheduler's view of "today"). Drop past-due items —
+    # Meta can't schedule into the past, and forwarding them causes immediate
+    # publish at the wrong time (the bug that posted yesterday's stories this
+    # morning).
     try:
         q_data = api("/api/social/queue?status=scheduled")
-        horizon = datetime.now() + timedelta(days=32)
-        all_items = [
-            i for i in q_data.get("items", [])
-            if datetime.fromisoformat(i["scheduledDate"].replace("Z","")) <= horizon
-        ]
+        now_et   = datetime.now(ET).replace(tzinfo=None)
+        horizon  = now_et + timedelta(days=32)
+        skipped_past = 0
+        all_items = []
+        for i in q_data.get("items", []):
+            sd = parse_sched(i["scheduledDate"])
+            if sd < now_et:
+                skipped_past += 1
+                continue
+            if sd <= horizon:
+                all_items.append(i)
+        if skipped_past:
+            log(f"  Skipped {skipped_past} past-due item(s) — can't schedule in the past")
         if args.account:
             all_items = [i for i in all_items if i.get("accountId") == args.account]
         if args.type:
@@ -385,10 +411,10 @@ def run(args):
     log(f"  First: {clean_items[0]['scheduledDate'][:10]} | Last: {clean_items[-1]['scheduledDate'][:10]}")
 
     if args.dry_run:
-        log("\n[DRY RUN] Preview:")
+        log("\n[DRY RUN] Preview (times shown in ET):")
         for item in clean_items[:15]:
-            dt = datetime.fromisoformat(item["scheduledDate"].replace("Z",""))
-            log(f"  [{item['type']:5}] {item.get('templateName','?'):12} V{item.get('variationNum','?')} → {dt.strftime('%a %b %d at %I:%M %p')} | {Path(item['videoUrl']).name}")
+            dt = parse_sched(item["scheduledDate"])
+            log(f"  [{item['type']:5}] {item.get('templateName','?'):12} V{item.get('variationNum','?')} → {dt.strftime('%a %b %d at %I:%M %p')} ET | {Path(item['videoUrl']).name}")
         if len(clean_items) > 15:
             log(f"  ... +{len(clean_items)-15} more")
         log("\n[DRY RUN] Done — no browser opened"); return
@@ -437,7 +463,7 @@ def run(args):
                 try:
                     api("/api/social/queue", "PATCH", {
                         "id": r["id"], "status": "posted",
-                        "postedAt": datetime.now().isoformat(),
+                        "postedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "confirmedInMeta": True,
                     })
                 except: pass
@@ -458,7 +484,7 @@ def run(args):
             time.sleep(3)
 
     finally:
-        duration_ms = int((datetime.now()-start).total_seconds()*1000)
+        duration_ms = int((datetime.now(timezone.utc)-start).total_seconds()*1000)
         status = "success" if total_failed == 0 else ("partial" if total_posted > 0 else "failed")
 
         log(f"\n{'='*60}")
@@ -472,7 +498,7 @@ def run(args):
                     "id": log_id, "status": status,
                     "itemsPosted": total_posted, "itemsFailed": total_failed,
                     "itemsAttempted": len(clean_items), "durationMs": duration_ms,
-                    "details": all_details, "finishedAt": datetime.now().isoformat()
+                    "details": all_details, "finishedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 })
             except: pass
 
