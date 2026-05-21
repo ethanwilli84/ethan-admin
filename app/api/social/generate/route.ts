@@ -106,13 +106,20 @@ export async function POST(req: NextRequest) {
     const reverseSequence = !!(settings[`reverseSequence_${type}`] || settings.reverseSequence?.[type])
     if (reverseSequence) sequence.reverse()
 
-    // Generate all dates from tomorrow to yearsAhead years out
-    const startDate = new Date()  // start from today
+    // Generate all dates from today to yearsAhead years out, but skip dates that
+    // already have a confirmed (posted) item of this type — avoids re-scheduling
+    // something we already published today/yesterday/etc.
+    const confirmedDocs = await db.collection('social_confirmed_dates')
+      .find({ accountId, type }).project({ date: 1 }).toArray()
+    const confirmedDates = new Set(confirmedDocs.map((c) => c.date as string))
+
+    const startDate = new Date()
     const endDate   = addDays(new Date(), yearsAhead * 365)
     const postDates: Date[] = []
     let d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
     while (d <= endDate) {
-      if (days.includes(d.getDay())) postDates.push(new Date(d))
+      const isoDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+      if (days.includes(d.getDay()) && !confirmedDates.has(isoDate)) postDates.push(new Date(d))
       d = addDays(d, 1)
     }
 

@@ -9,16 +9,14 @@ export async function GET(req: NextRequest) {
   const db = await getDb()
   const accountId = req.nextUrl.searchParams.get('accountId')
   const date = req.nextUrl.searchParams.get('date') // YYYY-MM-DD
+  const type = req.nextUrl.searchParams.get('type')
 
-  if (accountId && date) {
-    const exists = await db.collection('social_confirmed_dates').findOne({ accountId, date })
-    return NextResponse.json({ ok: true, confirmed: !!exists })
-  }
-
-  // List all confirmed dates for an account
+  // Always return a list of matching docs. Callers can check .length for existence.
   const filter: Record<string, unknown> = {}
   if (accountId) filter.accountId = accountId
-  const docs = await db.collection('social_confirmed_dates').find(filter).sort({ date: -1 }).limit(200).toArray()
+  if (date) filter.date = date
+  if (type) filter.type = type
+  const docs = await db.collection('social_confirmed_dates').find(filter).sort({ date: -1 }).limit(2000).toArray()
   return NextResponse.json({ ok: true, confirmed: docs })
 }
 
@@ -27,8 +25,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { accountId, type, date, scheduledAt, templateName, variationNum, confirmedAt } = body
 
+  // Per-item upsert so multiple stories (or any items) on the same day all get tracked.
   await db.collection('social_confirmed_dates').updateOne(
-    { accountId, date, type },
+    { accountId, date, type, templateName: templateName || '', variationNum: variationNum ?? null },
     { $set: { accountId, type, date, scheduledAt, templateName, variationNum, confirmedAt: confirmedAt || new Date().toISOString() } },
     { upsert: true }
   )
