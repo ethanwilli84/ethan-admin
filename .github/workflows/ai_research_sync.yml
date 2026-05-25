@@ -1,8 +1,11 @@
 name: AI Research Sync
 
 on:
-  schedule:
-    - cron: '0 11 * * *'  # 7am ET daily
+  # Schedule paused 2026-05-25 — Sonnet 4.5 + web_search was eating ~$5–15/day.
+  # Manual runs still work via "Run workflow" in the Actions UI.
+  # Re-enable by uncommenting the cron line below.
+  # schedule:
+  #   - cron: '0 11 * * *'  # 7am ET daily
   workflow_dispatch:
 
 jobs:
