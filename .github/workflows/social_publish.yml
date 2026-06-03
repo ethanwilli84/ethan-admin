@@ -1,10 +1,12 @@
 name: Social Publisher
 
 on:
-  # Runs every 15 minutes — API route checks if anything is due right now
-  # No hardcoded post times. Change schedule in admin UI, it just works.
-  schedule:
-    - cron: '*/15 * * * *'
+  # CRON DISABLED 2026-05-27 — was racing the local Mac LaunchAgent
+  # (~/scripts/social/api_scheduler.py), causing duplicate posts (e.g. 6 sire-ship
+  # stories instead of 3 on 2026-05-27). Local cron is now the sole publisher.
+  # Re-enable here ONLY if the local LaunchAgent is also disabled.
+  # schedule:
+  #   - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       mode:
