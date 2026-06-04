@@ -1,16 +1,20 @@
 name: Social Publisher
 
 on:
-  # CRON DISABLED 2026-05-27 — was racing the local Mac LaunchAgent
-  # (~/scripts/social/api_scheduler.py), causing duplicate posts (e.g. 6 sire-ship
-  # stories instead of 3 on 2026-05-27). Local cron is now the sole publisher.
-  # Re-enable here ONLY if the local LaunchAgent is also disabled.
-  # schedule:
-  #   - cron: '*/15 * * * *'
+  # Runs every 15 minutes — API route checks if anything is due right now
+  # in a ±30/+5 min window. Local Mac LaunchAgent is DISABLED so this is the
+  # sole publisher; do not re-enable the local cron without disabling this one
+  # (they will race and double-post — happened 2026-05-27).
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       mode:
         description: 'post | reel | story | all'
+        default: 'all'
+        required: true
+      account:
+        description: 'sire-ship | sire-app | michigan-hype | all'
         default: 'all'
         required: true
       dry_run:
@@ -25,17 +29,29 @@ jobs:
       - name: Run publisher
         run: |
           MODE="${{ github.event.inputs.mode || 'all' }}"
+          ACCOUNT="${{ github.event.inputs.account || 'all' }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
 
-          echo "mode=$MODE dry_run=$DRY_RUN time=$(date -u)"
+          echo "mode=$MODE account=$ACCOUNT dry_run=$DRY_RUN time=$(date -u)"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ secrets.ADMIN_URL }}/api/social/publish" \
-            -H "Content-Type: application/json" \
-            -d "{\"mode\":\"$MODE\",\"accountId\":\"sire-ship\",\"dryRun\":$DRY_RUN}")
+          if [ "$ACCOUNT" = "all" ]; then
+            ACCOUNTS="sire-ship sire-app michigan-hype"
+          else
+            ACCOUNTS="$ACCOUNT"
+          fi
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -1)
-          echo "HTTP $HTTP_CODE: $BODY"
+          FAIL=0
+          for ACC in $ACCOUNTS; do
+            echo "--- $ACC ---"
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              "${{ secrets.ADMIN_URL }}/api/social/publish" \
+              -H "Content-Type: application/json" \
+              -d "{\"mode\":\"$MODE\",\"accountId\":\"$ACC\",\"dryRun\":$DRY_RUN}")
 
-          [ "$HTTP_CODE" = "200" ] || exit 1
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | head -1)
+            echo "$ACC HTTP $HTTP_CODE: $BODY"
+            [ "$HTTP_CODE" = "200" ] || FAIL=1
+          done
+
+          exit $FAIL
