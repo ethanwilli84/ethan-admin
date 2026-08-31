@@ -35,7 +35,11 @@ const SPACES = {
   cdn:    process.env.DO_SPACES_CDN    || 'https://ethan-social.nyc3.cdn.digitaloceanspaces.com',
 }
 
-const LOOKBACK_MIN = 30    // catch items missed by delayed GH Actions runs (can be 15-20min late)
+// GitHub throttles scheduled workflows on idle repos — observed gaps of 3-5h
+// between runs (Aug 2026), which starved sire-app + michigan-hype when their
+// post times fell between runs. Wide lookback = any run catches everything due
+// since the last one. Atomic claim below prevents double-posting.
+const LOOKBACK_MIN = 360   // 6h — must exceed the worst observed cron gap
 const LOOKAHEAD_MIN = 5    // small forward window — don't post too early
 
 async function ensurePublicUrl(storedUrl: string): Promise<string> {
